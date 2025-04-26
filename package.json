@@ -1,0 +1,60 @@
+{
+  "name": "spring-fullstack",
+  "version": "1.0.0",
+  "description": "A CLI tool to generate fullstack Spring Boot applications with modern frontend frameworks",
+  "main": "dist/index.js",
+  "bin": {
+    "spring-fullstack": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run lint"
+  },
+  "keywords": [
+    "spring-boot",
+    "fullstack",
+    "cli",
+    "react",
+    "vue",
+    "angular",
+    "typescript"
+  ],
+  "author": "enokdev",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^9.0.0",
+    "fs-extra": "^10.0.0",
+    "inquirer": "^8.0.0",
+    "chalk": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^9.0.0",
+    "@types/inquirer": "^7.0.0",
+    "@types/jest": "^27.0.0",
+    "@types/node": "^16.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^27.0.0",
+    "ts-jest": "^27.0.0",
+    "typescript": "^4.5.0"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enokdev/spring-fullstack.git"
+  },
+  "bugs": {
+    "url": "https://github.com/enokdev/spring-fullstack/issues"
+  },
+  "homepage": "https://github.com/enokdev/spring-fullstack#readme"
+}
