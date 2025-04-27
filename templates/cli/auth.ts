@@ -98,7 +98,7 @@ function getAuthenticationConfig(config: ProjectConfig): string {
   }
 }
 
-async function setupAuthConfig(resourcesPath: string, config: ProjectConfig) {
+export async function setupAuthConfig(resourcesPath: string, config: ProjectConfig) {
   let authConfig = `
 spring:
   security:
@@ -258,4 +258,47 @@ function generateRandomPassword(): string {
 
 function generateRandomSecret(): string {
   return Math.random().toString(36).slice(-32);
+}
+
+export async function setupAuthDependencies(projectPath: string, authType: string): Promise<void> {
+  const pomPath = path.join(projectPath, 'backend/pom.xml');
+  const pomContent = await fs.readFile(pomPath, 'utf-8');
+
+  const authDependencies = {
+    jwt: `
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>`,
+    session: `
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-jdbc</artifactId>
+        </dependency>`,
+    oauth2: `
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>`
+  };
+
+  const updatedPomContent = pomContent.replace(
+    '</dependencies>',
+    `${authDependencies[authType]}\n    </dependencies>`
+  );
+
+  await fs.writeFile(pomPath, updatedPomContent);
 } 

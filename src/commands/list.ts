@@ -1,24 +1,33 @@
-import { execa } from 'execa';
-import ora from 'ora';
+import { spawn } from 'child_process';
 
-export async function list() {
-  const spinner = ora('Récupération des versions des templates...').start();
-
+export async function listTemplates(): Promise<void> {
   try {
-    // Récupérer les tags du dépôt des templates
-    const { stdout } = await execa('git', ['ls-remote', '--tags', 'https://github.com/your-org/spring-fullstack-template.git']);
-
-    // Parser les versions
+    const git = spawn('git', ['ls-remote', '--tags', 'https://github.com/your-org/spring-fullstack-template.git']);
+    
+    let stdout = '';
+    git.stdout.on('data', (data) => {
+      stdout += data;
+    });
+    
+    await new Promise((resolve, reject) => {
+      git.on('close', (code) => {
+        if (code === 0) {
+          resolve(undefined);
+        } else {
+          reject(new Error(`git command failed with code ${code}`));
+        }
+      });
+    });
+    
     const versions = stdout
       .split('\n')
-      .map(line => line.split('\t')[1])
-      .filter(tag => tag && tag.startsWith('refs/tags/'))
-      .map(tag => tag.replace('refs/tags/', ''));
-
-    spinner.succeed('Versions disponibles :');
+      .filter(Boolean)
+      .map(line => line.split('/').pop() || '');
+    
+    console.log('Available templates:');
     versions.forEach(version => console.log(`- ${version}`));
   } catch (error) {
-    spinner.fail('Erreur lors de la récupération des versions');
-    console.error(error);
+    console.error('Error listing templates:', error);
+    process.exit(1);
   }
 } 

@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { ProjectOptions } from './create';
+import { ProjectOptions } from './create.js';
 
 export async function generateBackend(projectPath: string, options: ProjectOptions): Promise<void> {
   const backendPath = path.join(projectPath, 'backend');
@@ -76,6 +76,44 @@ export async function generateBackend(projectPath: string, options: ProjectOptio
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        ${options.templateEngine === 'thymeleaf' ? `
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        ` : ''}
+        ${options.templateEngine === 'freemarker' ? `
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-freemarker</artifactId>
+        </dependency>
+        ` : ''}
+        ${options.templateEngine === 'jsp' ? `
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-jasper</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        ` : ''}
+        ${options.swagger ? `
+        <dependency>
+            <groupId>io.springfox</groupId>
+            <artifactId>springfox-boot-starter</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        ` : ''}
+        ${options.graphql ? `
+        <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-spring-boot-starter</artifactId>
+            <version>5.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-java-tools</artifactId>
+            <version>5.2.4</version>
+        </dependency>
+        ` : ''}
     </dependencies>
     <build>
         <plugins>
@@ -88,100 +126,210 @@ export async function generateBackend(projectPath: string, options: ProjectOptio
 </project>`;
 
   await fs.writeFile(path.join(backendPath, 'pom.xml'), pomContent);
+
+  // Créer les templates si un moteur de template est sélectionné
+  if (options.templateEngine) {
+    const templatesPath = path.join(backendPath, 'src/main/resources/templates');
+    await fs.mkdirp(templatesPath);
+
+    const templateContent = {
+      thymeleaf: `
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Home</title>
+</head>
+<body>
+    <h1>Welcome to ${options.projectName}</h1>
+</body>
+</html>`,
+      freemarker: `
+<#-- @ftlvariable name="message" type="java.lang.String" -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home</title>
+</head>
+<body>
+    <h1>Welcome to ${options.projectName}</h1>
+</body>
+</html>`,
+      jsp: `
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home</title>
+</head>
+<body>
+    <h1>Welcome to ${options.projectName}</h1>
+</body>
+</html>`
+    };
+
+    const extension = {
+      thymeleaf: 'html',
+      freemarker: 'ftl',
+      jsp: 'jsp'
+    };
+
+    await fs.writeFile(
+      path.join(templatesPath, `home.${extension[options.templateEngine]}`),
+      templateContent[options.templateEngine]
+    );
+  }
 }
 
 export async function generateFrontend(projectPath: string, options: ProjectOptions): Promise<void> {
   const frontendPath = path.join(projectPath, 'frontend');
-  await fs.mkdirp(frontendPath);
+  await fs.ensureDir(frontendPath);
 
-  // Créer la structure de base du frontend
-  const frontendStructure = {
-    'src': [
-      'components',
-      'pages',
-      'services',
-      'utils',
-      'styles',
-      'assets'
-    ],
-    'public': [
-      'index.html',
-      'favicon.ico'
-    ]
+  if (options.frontend === 'react') {
+    await generateReactFrontend(frontendPath);
+  } else if (options.frontend === 'vue') {
+    await generateVueFrontend(frontendPath);
+  } else if (options.frontend === 'angular') {
+    await generateAngularFrontend(frontendPath);
+  }
+}
+
+async function generateReactFrontend(frontendPath: string): Promise<void> {
+  // Create package.json
+  const packageJson = {
+    name: path.basename(frontendPath),
+    version: '1.0.0',
+    private: true,
+    dependencies: {
+      '@types/node': '^12.0.0',
+      '@types/react': '^17.0.0',
+      '@types/react-dom': '^17.0.0',
+      'react': '^17.0.2',
+      'react-dom': '^17.0.2',
+      'react-router-dom': '^6.0.0',
+      'typescript': '^4.5.0'
+    },
+    scripts: {
+      'start': 'react-scripts start',
+      'build': 'react-scripts build',
+      'test': 'react-scripts test',
+      'eject': 'react-scripts eject'
+    }
   };
 
-  // Créer la structure de dossiers et fichiers
-  for (const [basePath, items] of Object.entries(frontendStructure)) {
-    const fullPath = path.join(frontendPath, basePath);
-    await fs.mkdirp(fullPath);
-    
-    for (const item of items) {
-      if (!item.includes('.')) {
-        await fs.mkdirp(path.join(fullPath, item));
-      } else {
-        await fs.writeFile(path.join(fullPath, item), '');
-      }
+  await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
+
+  // Create tsconfig.json
+  const tsconfig = {
+    compilerOptions: {
+      target: 'es5',
+      lib: ['dom', 'dom.iterable', 'esnext'],
+      allowJs: true,
+      skipLibCheck: true,
+      esModuleInterop: true,
+      allowSyntheticDefaultImports: true,
+      strict: true,
+      forceConsistentCasingInFileNames: true,
+      noFallthroughCasesInSwitch: true,
+      module: 'esnext',
+      moduleResolution: 'node',
+      resolveJsonModule: true,
+      isolatedModules: true,
+      noEmit: true,
+      jsx: 'react-jsx'
+    },
+    include: ['src']
+  };
+
+  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
+}
+
+async function generateVueFrontend(frontendPath: string): Promise<void> {
+  // Create package.json
+  const packageJson = {
+    name: path.basename(frontendPath),
+    version: '1.0.0',
+    private: true,
+    dependencies: {
+      'vue': '^3.2.0',
+      'vue-router': '^4.0.0',
+      'vuex': '^4.0.0',
+      'typescript': '^4.5.0'
+    },
+    devDependencies: {
+      '@vue/cli-plugin-typescript': '^5.0.0',
+      '@vue/cli-service': '^5.0.0',
+      '@vue/compiler-sfc': '^3.2.0'
+    },
+    scripts: {
+      'serve': 'vue-cli-service serve',
+      'build': 'vue-cli-service build'
     }
-  }
+  };
 
-  // Configurer package.json selon le framework choisi
-  let packageJsonContent = '';
-  if (options.frontend === 'React') {
-    packageJsonContent = `{
-  "name": "${options.projectName}-frontend",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.3.0",
-    "axios": "^0.27.2"
-  },
-  "devDependencies": {
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
-    "typescript": "^4.7.0",
-    "vite": "^3.0.0"
-  }
-}`;
-  } else if (options.frontend === 'Vue.js') {
-    packageJsonContent = `{
-  "name": "${options.projectName}-frontend",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "vue": "^3.2.0",
-    "vue-router": "^4.0.0",
-    "axios": "^0.27.2"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^3.0.0",
-    "typescript": "^4.7.0",
-    "vite": "^3.0.0"
-  }
-}`;
-  } else if (options.frontend === 'Angular') {
-    packageJsonContent = `{
-  "name": "${options.projectName}-frontend",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "@angular/core": "^14.0.0",
-    "@angular/common": "^14.0.0",
-    "@angular/router": "^14.0.0",
-    "@angular/forms": "^14.0.0",
-    "@angular/platform-browser": "^14.0.0",
-    "@angular/platform-browser-dynamic": "^14.0.0"
-  },
-  "devDependencies": {
-    "@angular-devkit/build-angular": "^14.0.0",
-    "@angular/cli": "^14.0.0",
-    "typescript": "^4.7.0"
-  }
-}`;
-  }
+  await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
 
-  await fs.writeFile(path.join(frontendPath, 'package.json'), packageJsonContent);
+  // Create tsconfig.json
+  const tsconfig = {
+    compilerOptions: {
+      target: 'esnext',
+      module: 'esnext',
+      strict: true,
+      jsx: 'preserve',
+      moduleResolution: 'node'
+    }
+  };
+
+  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
+}
+
+async function generateAngularFrontend(frontendPath: string): Promise<void> {
+  // Create package.json
+  const packageJson = {
+    name: path.basename(frontendPath),
+    version: '1.0.0',
+    private: true,
+    dependencies: {
+      '@angular/core': '^13.0.0',
+      '@angular/platform-browser': '^13.0.0',
+      '@angular/platform-browser-dynamic': '^13.0.0',
+      '@angular/router': '^13.0.0',
+      'rxjs': '^7.4.0',
+      'zone.js': '^0.11.4',
+      'typescript': '^4.5.0'
+    },
+    devDependencies: {
+      '@angular-devkit/build-angular': '^13.0.0',
+      '@angular/cli': '^13.0.0',
+      '@angular/compiler-cli': '^13.0.0'
+    },
+    scripts: {
+      'ng': 'ng',
+      'start': 'ng serve',
+      'build': 'ng build'
+    }
+  };
+
+  await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
+
+  // Create tsconfig.json
+  const tsconfig = {
+    compileOnSave: false,
+    compilerOptions: {
+      baseUrl: './src',
+      outDir: './dist/out-tsc',
+      sourceMap: true,
+      declaration: false,
+      downlevelIteration: true,
+      experimentalDecorators: true,
+      moduleResolution: 'node',
+      importHelpers: true,
+      target: 'es2015',
+      module: 'es2020',
+      lib: ['es2018', 'dom']
+    }
+  };
+
+  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
 }
 
 export async function generateDocker(projectPath: string, options: ProjectOptions): Promise<void> {

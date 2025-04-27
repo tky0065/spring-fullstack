@@ -1,36 +1,27 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
-import { createProject } from './commands/create';
-import { install } from './commands/install';
-import { update } from './commands/update';
-import { list } from './commands/list';
 
-const program = new Command();
+import { listTemplates } from './commands/list';
+import { installGlobally } from './commands/install';
+import { updatePackage } from './commands/update';
+import { program } from 'commander';
 
 program
-  .name('spring-fullstack')
-  .description('CLI pour générer des projets fullstack Spring Boot')
-  .version('1.0.0');
+  .version('1.0.0')
+  .description('CLI pour générer des projets Spring Boot fullstack');
 
 program
-  .command('new')
-  .description('Créer un nouveau projet fullstack')
-  .argument('<project-name>', 'Nom du projet')
-  .action(createProject);
+  .command('list')
+  .description('Lister les versions disponibles des templates')
+  .action(listTemplates);
 
 program
   .command('install')
   .description('Installer le CLI globalement')
-  .action(install);
+  .action(installGlobally);
 
 program
   .command('update')
-  .description('Mettre à jour le starter kit')
-  .action(update);
+  .description('Mettre à jour le CLI')
+  .action(updatePackage);
 
-program
-  .command('list')
-  .description('Lister les versions des templates disponibles')
-  .action(list);
-
-program.parse();
+program.parse(process.argv);

@@ -1,151 +1,169 @@
-import { ProjectConfig } from './config';
-import fs from 'fs-extra';
-import path from 'path';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { ProjectConfig } from '../../src/types';
+import { Buffer } from 'buffer';
 
-export async function setupDeployment(projectPath: string, config: ProjectConfig) {
-  await setupEnvironments(projectPath, config);
-  await setupDeploymentScripts(projectPath, config);
-  await setupCI(projectPath, config);
+export function setupDeployment(config: ProjectConfig) {
+  const deploymentPath = join(config.projectPath, 'deployment');
+  mkdirSync(deploymentPath, { recursive: true });
+
+  // Configuration des environnements
+  setupEnvironments(deploymentPath, config);
+  
+  // Configuration Docker
+  setupDocker(deploymentPath, config);
+  
+  // Configuration Kubernetes
+  setupKubernetes(deploymentPath, config);
+  
+  // Scripts de déploiement
+  setupDeploymentScripts(deploymentPath, config);
 }
 
-async function setupEnvironments(projectPath: string, config: ProjectConfig) {
-  const backendPath = path.join(projectPath, 'backend');
-  const resourcesPath = path.join(backendPath, 'src', 'main', 'resources');
-  
-  // Create development environment
-  const devConfig = `
-spring:
-  profiles:
-    active: dev
+function setupEnvironments(deploymentPath: string, config: ProjectConfig) {
+  const envPath = join(deploymentPath, 'environments');
+  mkdirSync(envPath, { recursive: true });
+
+  // Configuration développement
+  writeFileSync(
+    join(envPath, 'application-dev.yml'),
+    `spring:
   datasource:
-    url: ${getDatabaseUrl(config, 'dev')}
-    username: ${getDefaultUsername(config)}
-    password: ${getDefaultPassword(config)}
+    url: jdbc:${config.databaseType}://localhost:3306/${config.projectName}_dev
+    username: dev_user
+    password: dev_password
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
   logging:
     level:
+      root: DEBUG
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+`
+  );
+
+  // Configuration test
+  writeFileSync(
+    join(envPath, 'application-test.yml'),
+    `spring:
+  datasource:
+    url: jdbc:${config.databaseType}://localhost:3306/${config.projectName}_test
+    username: test_user
+    password: test_password
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  logging:
+    level:
       root: INFO
-      com.${config.projectName.toLowerCase()}: DEBUG
-`;
-
-  await fs.writeFile(
-    path.join(resourcesPath, 'application-dev.yml'),
-    devConfig
+`
   );
-  
-  // Create test environment
-  const testConfig = `
-spring:
-  profiles:
-    active: test
+
+  // Configuration production
+  writeFileSync(
+    join(envPath, 'application-prod.yml'),
+    `spring:
   datasource:
-    url: ${getDatabaseUrl(config, 'test')}
-    username: ${getDefaultUsername(config)}
-    password: ${getDefaultPassword(config)}
+    url: jdbc:${config.databaseType}://${config.databaseHost}:${config.databasePort}/${config.projectName}
+    username: ${config.databaseUsername}
+    password: ${config.databasePassword}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: false
   logging:
     level:
       root: WARN
-      com.${config.projectName.toLowerCase()}: INFO
-`;
-
-  await fs.writeFile(
-    path.join(resourcesPath, 'application-test.yml'),
-    testConfig
-  );
-  
-  // Create production environment
-  const prodConfig = `
-spring:
-  profiles:
-    active: prod
-  datasource:
-    url: ${getDatabaseUrl(config, 'prod')}
-    username: ${getDefaultUsername(config)}
-    password: ${getDefaultPassword(config)}
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-  logging:
-    level:
-      root: WARN
-      com.${config.projectName.toLowerCase()}: INFO
-`;
-
-  await fs.writeFile(
-    path.join(resourcesPath, 'application-prod.yml'),
-    prodConfig
+`
   );
 }
 
-async function setupDeploymentScripts(projectPath: string, config: ProjectConfig) {
-  const scriptsPath = path.join(projectPath, 'scripts');
-  await fs.ensureDir(scriptsPath);
-  
-  // Create deployment script
-  const deployScript = `
-#!/bin/bash
+function setupDocker(deploymentPath: string, config: ProjectConfig) {
+  const dockerPath = join(deploymentPath, 'docker');
+  mkdirSync(dockerPath, { recursive: true });
 
-# Load environment variables
-source .env
+  // Dockerfile pour le backend
+  writeFileSync(
+    join(dockerPath, 'Dockerfile'),
+    `FROM maven:3.8.4-openjdk-11 as build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-# Build and deploy backend
-cd backend
-mvn clean package -DskipTests
-docker build -t ${config.projectName.toLowerCase()}-backend:latest .
-docker push ${config.projectName.toLowerCase()}-backend:latest
+COPY src ./src
+RUN mvn package -DskipTests
 
-# Build and deploy frontend
-cd ../frontend
-npm install
-npm run build
-docker build -t ${config.projectName.toLowerCase()}-frontend:latest .
-docker push ${config.projectName.toLowerCase()}-frontend:latest
-
-# Deploy to Kubernetes
-cd ..
-kubectl apply -f k8s/
-`;
-
-  await fs.writeFile(
-    path.join(scriptsPath, 'deploy.sh'),
-    deployScript
+FROM openjdk:11-jre-slim
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+`
   );
-  
-  // Create Kubernetes configurations
-  await setupKubernetes(projectPath, config);
+
+  // docker-compose.yml
+  writeFileSync(
+    join(dockerPath, 'docker-compose.yml'),
+    `version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deployment/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:${config.databaseType}://db:3306/${config.projectName}
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+    depends_on:
+      - db
+
+  db:
+    image: ${config.databaseType}:latest
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=${config.projectName}
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:
+`
+  );
 }
 
-async function setupKubernetes(projectPath: string, config: ProjectConfig) {
-  const k8sPath = path.join(projectPath, 'k8s');
-  await fs.ensureDir(k8sPath);
-  
-  // Create deployment configurations
-  const backendDeployment = `
-apiVersion: apps/v1
+function setupKubernetes(deploymentPath: string, config: ProjectConfig) {
+  const k8sPath = join(deploymentPath, 'kubernetes');
+  mkdirSync(k8sPath, { recursive: true });
+
+  // Déploiement backend
+  writeFileSync(
+    join(k8sPath, 'backend-deployment.yml'),
+    `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ${config.projectName.toLowerCase()}-backend
+  name: ${config.projectName}-backend
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: ${config.projectName.toLowerCase()}-backend
+      app: ${config.projectName}-backend
   template:
     metadata:
       labels:
-        app: ${config.projectName.toLowerCase()}-backend
+        app: ${config.projectName}-backend
     spec:
       containers:
-      - name: backend
-        image: ${config.projectName.toLowerCase()}-backend:latest
+      - name: ${config.projectName}-backend
+        image: ${config.projectName}-backend:latest
         ports:
         - containerPort: 8080
         env:
@@ -154,187 +172,110 @@ spec:
         - name: SPRING_DATASOURCE_URL
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: url
+              name: ${config.projectName}-secrets
+              key: datasource-url
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: username
+              name: ${config.projectName}-secrets
+              key: datasource-username
         - name: SPRING_DATASOURCE_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: db-secret
-              key: password
-`;
-
-  await fs.writeFile(
-    path.join(k8sPath, 'backend-deployment.yaml'),
-    backendDeployment
+              name: ${config.projectName}-secrets
+              key: datasource-password
+`
   );
-  
-  const frontendDeployment = `
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${config.projectName.toLowerCase()}-frontend
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: ${config.projectName.toLowerCase()}-frontend
-  template:
-    metadata:
-      labels:
-        app: ${config.projectName.toLowerCase()}-frontend
-    spec:
-      containers:
-      - name: frontend
-        image: ${config.projectName.toLowerCase()}-frontend:latest
-        ports:
-        - containerPort: 80
-`;
 
-  await fs.writeFile(
-    path.join(k8sPath, 'frontend-deployment.yaml'),
-    frontendDeployment
-  );
-  
-  // Create service configurations
-  const backendService = `
-apiVersion: v1
+  // Service backend
+  writeFileSync(
+    join(k8sPath, 'backend-service.yml'),
+    `apiVersion: v1
 kind: Service
 metadata:
-  name: ${config.projectName.toLowerCase()}-backend
+  name: ${config.projectName}-backend
 spec:
   selector:
-    app: ${config.projectName.toLowerCase()}-backend
+    app: ${config.projectName}-backend
   ports:
   - port: 80
     targetPort: 8080
-  type: ClusterIP
-`;
-
-  await fs.writeFile(
-    path.join(k8sPath, 'backend-service.yaml'),
-    backendService
-  );
-  
-  const frontendService = `
-apiVersion: v1
-kind: Service
-metadata:
-  name: ${config.projectName.toLowerCase()}-frontend
-spec:
-  selector:
-    app: ${config.projectName.toLowerCase()}-frontend
-  ports:
-  - port: 80
-    targetPort: 80
   type: LoadBalancer
-`;
+`
+  );
 
-  await fs.writeFile(
-    path.join(k8sPath, 'frontend-service.yaml'),
-    frontendService
+  // Secrets
+  writeFileSync(
+    join(k8sPath, 'secrets.yml'),
+    `apiVersion: v1
+kind: Secret
+metadata:
+  name: ${config.projectName}-secrets
+type: Opaque
+data:
+  datasource-url: ${Buffer.from(`jdbc:${config.databaseType}://db:3306/${config.projectName}`).toString('base64')}
+  datasource-username: ${Buffer.from('root').toString('base64')}
+  datasource-password: ${Buffer.from('root').toString('base64')}
+`
   );
 }
 
-async function setupCI(projectPath: string, config: ProjectConfig) {
-  const ciPath = path.join(projectPath, '.github', 'workflows');
-  await fs.ensureDir(ciPath);
-  
-  // Create GitHub Actions workflow
-  const workflow = `
-name: CI/CD Pipeline
+function setupDeploymentScripts(deploymentPath: string, config: ProjectConfig) {
+  const scriptsPath = join(deploymentPath, 'scripts');
+  mkdirSync(scriptsPath, { recursive: true });
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  // Script de déploiement
+  writeFileSync(
+    join(scriptsPath, 'deploy.sh'),
+    `#!/bin/bash
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Set up JDK 17
-      uses: actions/setup-java@v2
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        
-    - name: Build and test backend
-      run: |
-        cd backend
-        mvn clean package
-        
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '18'
-        
-    - name: Build and test frontend
-      run: |
-        cd frontend
-        npm install
-        npm run build
-        npm test
-        
-  deploy:
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Deploy to production
-      run: |
-        ./scripts/deploy.sh
-`;
+# Variables
+APP_NAME="${config.projectName}"
+VERSION="1.0.0"
+ENVIRONMENT=$1
 
-  await fs.writeFile(
-    path.join(ciPath, 'ci-cd.yml'),
-    workflow
+# Validation de l'environnement
+if [ -z "$ENVIRONMENT" ]; then
+  echo "Usage: ./deploy.sh <environment>"
+  echo "Environments: dev, test, prod"
+  exit 1
+fi
+
+# Build de l'application
+echo "Building application..."
+mvn clean package -DskipTests
+
+# Build de l'image Docker
+echo "Building Docker image..."
+docker build -t $APP_NAME:$VERSION -f deployment/docker/Dockerfile .
+
+# Tag de l'image
+docker tag $APP_NAME:$VERSION $APP_NAME:$ENVIRONMENT
+
+# Déploiement selon l'environnement
+case $ENVIRONMENT in
+  "dev")
+    echo "Deploying to development environment..."
+    docker-compose -f deployment/docker/docker-compose.yml up -d
+    ;;
+  "test")
+    echo "Deploying to test environment..."
+    kubectl apply -f deployment/kubernetes/
+    ;;
+  "prod")
+    echo "Deploying to production environment..."
+    kubectl apply -f deployment/kubernetes/
+    ;;
+  *)
+    echo "Invalid environment: $ENVIRONMENT"
+    exit 1
+    ;;
+esac
+
+echo "Deployment completed!"
+`
   );
-}
 
-function getDatabaseUrl(config: ProjectConfig, environment: string): string {
-  const dbName = `${config.projectName.toLowerCase()}_${environment}`;
-  switch (config.database.type) {
-    case 'PostgreSQL':
-      return `jdbc:postgresql://localhost:5432/${dbName}`;
-    case 'MySQL':
-      return `jdbc:mysql://localhost:3306/${dbName}`;
-    case 'MongoDB':
-      return `mongodb://localhost:27017/${dbName}`;
-    default:
-      return '';
-  }
-}
-
-function getDefaultUsername(config: ProjectConfig): string {
-  switch (config.database.type) {
-    case 'PostgreSQL':
-    case 'MySQL':
-      return 'root';
-    case 'MongoDB':
-      return '';
-    default:
-      return '';
-  }
-}
-
-function getDefaultPassword(config: ProjectConfig): string {
-  switch (config.database.type) {
-    case 'PostgreSQL':
-    case 'MySQL':
-      return 'root';
-    case 'MongoDB':
-      return '';
-    default:
-      return '';
-  }
+  // Rendre le script exécutable
+  require('child_process').execSync(`chmod +x ${join(scriptsPath, 'deploy.sh')}`);
 } 

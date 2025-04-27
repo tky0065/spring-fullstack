@@ -10,6 +10,20 @@ import { setupApi } from './api';
 import { setupTesting } from './testing';
 import { setupDocker } from './docker';
 import { setupFeatures } from './features';
+import { setupMultiModule } from './multiModule';
+import { setupMonorepo } from './monorepo';
+import { setupPlugins } from './plugins';
+import { setupSecurity } from './security';
+import { setupAlternativeFrontends } from './alternativeFrontends';
+import { setupDocumentation } from './documentation';
+import { setupEnvironments } from './environments';
+import { setupThirdPartyApis } from './thirdPartyApis';
+import { setupEmail } from './email';
+import { setupLogging } from './logging';
+import { setupSwagger } from './swagger';
+import { setupI18n } from './i18n';
+import { setupMigrations } from './migrations';
+import { setupAdminPanel } from './admin';
 
 async function main() {
   console.log('Welcome to Spring Fullstack Generator!');

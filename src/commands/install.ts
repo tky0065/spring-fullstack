@@ -1,18 +1,21 @@
-import { execa } from 'execa';
-import ora from 'ora';
+import { spawn } from 'child_process';
 
-export async function install() {
-  const spinner = ora('Installation du CLI...').start();
-
+export async function installGlobally(): Promise<void> {
   try {
-    // Créer le lien symbolique global
-    await execa('npm', ['link']);
-
-    spinner.succeed('CLI installé avec succès !');
-    console.log('\nVous pouvez maintenant utiliser la commande :');
-    console.log('spring-fullstack new <nom-du-projet>');
+    await new Promise((resolve, reject) => {
+      const npm = spawn('npm', ['link'], { stdio: 'inherit' });
+      npm.on('close', (code) => {
+        if (code === 0) {
+          resolve(undefined);
+        } else {
+          reject(new Error(`npm link failed with code ${code}`));
+        }
+      });
+    });
+    
+    console.log('Package installed globally successfully!');
   } catch (error) {
-    spinner.fail('Erreur lors de l\'installation du CLI');
-    console.error(error);
+    console.error('Error installing package globally:', error);
+    process.exit(1);
   }
 } 

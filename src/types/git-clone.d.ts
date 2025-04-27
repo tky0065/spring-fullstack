@@ -1,9 +1,15 @@
 declare module 'git-clone' {
+  interface CloneOptions {
+    checkout?: string;
+    shallow?: boolean;
+  }
+
   function gitClone(
-    url: string,
+    repo: string,
     targetPath: string,
-    options?: any,
-    callback?: (error?: Error) => void
+    options: CloneOptions,
+    callback: (error: Error | null) => void
   ): void;
+
   export = gitClone;
 } 

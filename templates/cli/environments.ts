@@ -2,10 +2,122 @@ import { ProjectConfig } from './config';
 import fs from 'fs-extra';
 import path from 'path';
 
-export async function setupEnvironments(projectPath: string, config: ProjectConfig) {
-  await setupEnvFiles(projectPath, config);
-  await setupSpringProfiles(projectPath, config);
-  await setupDockerEnv(projectPath, config);
+export async function setupEnvironments(projectPath: string): Promise<void> {
+  const resourcesPath = path.join(projectPath, 'backend/src/main/resources');
+  
+  // Configuration de base
+  const baseConfig = `
+spring:
+  profiles:
+    active: dev
+  application:
+    name: ${path.basename(projectPath)}
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: UTC
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+`;
+
+  // Configuration développement
+  const devConfig = `
+spring:
+  datasource:
+    url: jdbc:h2:mem:devdb
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+`;
+
+  // Configuration production
+  const prodConfig = `
+spring:
+  datasource:
+    url: ${process.env.DATABASE_URL}
+    username: ${process.env.DATABASE_USERNAME}
+    password: ${process.env.DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  security:
+    require-ssl: true
+  mail:
+    host: ${process.env.MAIL_HOST}
+    port: ${process.env.MAIL_PORT}
+    username: ${process.env.MAIL_USERNAME}
+    password: ${process.env.MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+`;
+
+  // Configuration test
+  const testConfig = `
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  test:
+    database:
+      replace: none
+`;
+
+  // Créer les fichiers de configuration
+  await fs.writeFile(path.join(resourcesPath, 'application.yml'), baseConfig);
+  await fs.writeFile(path.join(resourcesPath, 'application-dev.yml'), devConfig);
+  await fs.writeFile(path.join(resourcesPath, 'application-prod.yml'), prodConfig);
+  await fs.writeFile(path.join(resourcesPath, 'application-test.yml'), testConfig);
+
+  // Créer un fichier .env.example
+  const envExample = `
+# Database
+DATABASE_URL=jdbc:postgresql://localhost:5432/your_database
+DATABASE_USERNAME=your_username
+DATABASE_PASSWORD=your_password
+
+# Mail
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+
+# JWT
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRATION=86400000
+
+# OAuth2
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+`;
+
+  await fs.writeFile(path.join(projectPath, '.env.example'), envExample);
 }
 
 async function setupEnvFiles(projectPath: string, config: ProjectConfig) {
