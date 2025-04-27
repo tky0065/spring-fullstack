@@ -1,8 +1,8 @@
 import path from 'path';
 import fs from 'fs-extra';
 import chalk from 'chalk';
-import { ProjectConfig, defaultConfig } from '../types/config';
-import { generateFrontend, generateBackend, generateDocker } from './generators';
+import { ProjectConfig, defaultConfig } from '../types/config.js';
+import { generateFrontend, generateBackend, generateDocker } from './generators.js';
 import { spawn } from 'child_process';
 
 export interface ProjectOptions {
