@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { listTemplates } from './commands/list';
-import { installGlobally } from './commands/install';
-import { updatePackage } from './commands/update';
+import { listTemplates } from './commands/list.js';
+import { installGlobally } from './commands/install.js';
+import { updatePackage } from './commands/update.js';
 import { program } from 'commander';
 
 program

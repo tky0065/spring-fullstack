@@ -1,114 +1,100 @@
-import path from 'path';
-import fs from 'fs-extra';
+import { Command } from 'commander';
 import chalk from 'chalk';
-import { ProjectConfig, defaultConfig } from '../types/config.js';
-import { generateFrontend, generateBackend, generateDocker } from './generators.js';
-import { spawn } from 'child_process';
+import { execa } from 'execa';
+import { generateProject } from '../utils/generator.js';
+import { Database, Frontend, AuthType } from '../types.js';
+import { ProjectConfig } from '../types/config.js';
+import { setupDatabase } from '../templates/cli/database.js';
+import { setupAuthentication } from '../templates/cli/auth.js';
+import { setupDocker } from '../templates/cli/docker.js';
+import { setupEmail } from '../templates/cli/email.js';
 
-export interface ProjectOptions {
-  projectName: string;
-  database?: 'postgresql' | 'mysql' | 'mongodb' | 'h2';
-  frontend?: 'react' | 'vue' | 'angular' | 'none';
-  auth?: 'jwt' | 'session' | 'oauth2';
-  templateEngine?: 'thymeleaf' | 'freemarker' | 'jsp';
-  swagger?: boolean;
-  graphql?: boolean;
-  adminPanel?: boolean;
-  i18n?: boolean;
-  docker?: boolean;
-  ciCd?: boolean;
-  security?: boolean;
-  email?: boolean;
-  thirdPartyApis?: boolean;
-  tests?: boolean;
-  migrations?: boolean;
-  multiModule?: boolean;
-}
+const createCommand = new Command('create')
+  .description('Create a new fullstack Spring Boot project')
+  .argument('<projectName>', 'Name of the project')
+  .option('-d, --database <type>', 'Database type (MySQL, PostgreSQL, MongoDB, H2)', 'H2')
+  .option('-f, --frontend <type>', 'Frontend type (React, Vue.js, Angular, None, Java Template Engine)', 'None')
+  .option('-a, --auth [type]', 'Authentication type (JWT, OAuth2, Session)', 'JWT')
+  .option('--admin-panel', 'Include admin panel')
+  .option('--swagger', 'Include Swagger/OpenAPI documentation')
+  .option('--docker', 'Include Docker configuration')
+  .option('--ci-cd', 'Include CI/CD configuration')
+  .option('--environments', 'Include multiple environment configurations')
+  .option('--monorepo', 'Setup as monorepo')
+  .option('--security', 'Include advanced security features')
+  .option('--email', 'Include email functionality')
+  .option('--third-party-apis', 'Include third-party API integrations')
+  .option('--tests', 'Include testing configuration')
+  .option('--i18n', 'Include internationalization')
+  .option('--migrations', 'Include database migration configuration')
+  .option('--multi-module', 'Setup as multi-module project')
+  .action(async (projectName: string, options: any) => {
+    try {
+      const projectOptions = {
+        projectName,
+        database: options.database,
+        authentication: options.auth !== undefined,
+        authType: options.auth,
+        frontend: options.frontend,
+        adminPanel: options.adminPanel || false,
+        swagger: options.swagger || false,
+        docker: options.docker || false,
+        ciCd: options.ciCd || false,
+        environments: options.environments || false,
+        monorepo: options.monorepo || false,
+        security: options.security || false,
+        email: options.email || false,
+        thirdPartyApis: options.thirdPartyApis || false,
+        tests: options.tests || false,
+        i18n: options.i18n || false,
+        migrations: options.migrations || false,
+        multiModule: options.multiModule || false
+      };
 
-export async function createProject(projectName: string, options: ProjectOptions): Promise<void> {
-  try {
-    // Validate project name
-    if (!projectName) {
-      throw new Error('Project name is required');
-    }
-
-    // Check if directory already exists
-    const projectPath = path.join(process.cwd(), projectName);
-    if (fs.existsSync(projectPath)) {
-      throw new Error(`Directory ${projectName} already exists`);
-    }
-
-    // Create project directories
-    await fs.mkdir(projectPath);
-    await fs.mkdir(path.join(projectPath, 'backend'));
-    if (options.frontend !== 'none') {
-      await fs.mkdir(path.join(projectPath, 'frontend'));
-    }
-
-    // Generate backend
-    await generateBackend(projectPath, options);
-
-    // Generate frontend if needed
-    if (options.frontend !== 'none') {
-      await generateFrontend(projectPath, options);
-    }
-
-    // Generate Docker files if needed
-    if (options.docker) {
-      await generateDocker(projectPath, options);
-    }
-
-    // Generate backend configuration
-    const config: ProjectConfig = {
-      ...defaultConfig,
-      projectName,
-      database: {
-        ...defaultConfig.database,
-        type: (options.database as 'postgresql' | 'mysql' | 'mongodb') || 'postgresql'
-      },
-      frontend: {
-        framework: (options.frontend as 'react' | 'vue' | 'angular') || 'react'
-      },
-      auth: {
-        type: (options.auth as 'jwt' | 'session') || 'jwt'
-      }
-    };
-
-    // Create backend configuration file
-    await fs.writeJson(path.join(projectPath, 'backend', 'config.json'), config, { spaces: 2 });
-
-    // Install dependencies
-    console.log(chalk.blue('Installing dependencies...'));
-    await new Promise((resolve, reject) => {
-      const npm = spawn('npm', ['install'], { cwd: projectPath, stdio: 'inherit' });
-      npm.on('close', (code) => {
-        if (code === 0) {
-          resolve(undefined);
-        } else {
-          reject(new Error(`npm install failed with code ${code}`));
+      const config = {
+        projectName,
+        projectPath: `./${projectName}`,
+        databaseType: projectOptions.database,
+        databaseHost: 'localhost',
+        databasePort: projectOptions.database === 'PostgreSQL' ? '5432' : '3306',
+        databaseUsername: 'root',
+        databasePassword: 'password',
+        frontendFramework: projectOptions.frontend,
+        authentication: projectOptions.authentication,
+        emailEnabled: projectOptions.email,
+        thirdPartyApis: projectOptions.thirdPartyApis,
+        i18n: projectOptions.i18n,
+        migrations: projectOptions.migrations,
+        multiModule: projectOptions.multiModule,
+        testing: projectOptions.tests,
+        deployment: {
+          environments: projectOptions.environments ? ['dev', 'prod'] : ['dev'],
+          docker: projectOptions.docker,
+          kubernetes: false
         }
-      });
-    });
+      };
 
-    if (options.frontend !== 'none') {
-      await new Promise((resolve, reject) => {
-        const npm = spawn('npm', ['install'], { cwd: path.join(projectPath, 'frontend'), stdio: 'inherit' });
-        npm.on('close', (code) => {
-          if (code === 0) {
-            resolve(undefined);
-          } else {
-            reject(new Error(`npm install failed with code ${code}`));
-          }
-        });
-      });
+      console.log(chalk.blue('Creating project...'));
+      await generateProject(config);
+      console.log(chalk.green('Project created successfully!'));
+
+      if (config.frontendFramework !== 'None') {
+        console.log(chalk.blue('Installing frontend dependencies...'));
+        await execa('npm', ['install'], { cwd: `${projectName}/frontend` });
+      }
+
+      console.log(chalk.green('Project setup complete!'));
+      console.log(chalk.blue(`\nTo get started:\n`));
+      console.log(chalk.blue(`cd ${projectName}`));
+      if (config.deployment.docker) {
+        console.log(chalk.blue('docker-compose up -d'));
+      } else {
+        console.log(chalk.blue('./mvnw spring-boot:run'));
+      }
+    } catch (error) {
+      console.error(chalk.red('Error creating project:'), error);
+      process.exit(1);
     }
+  });
 
-    console.log(chalk.green(`Project ${projectName} created successfully!`));
-    console.log(chalk.blue('Next steps:'));
-    console.log(chalk.blue('1. cd ' + projectName));
-    console.log(chalk.blue('2. npm start'));
-  } catch (error) {
-    console.error(chalk.red('Error creating project:'), error instanceof Error ? error.message : 'Unknown error');
-    process.exit(1);
-  }
-} 
+export default createCommand; 

@@ -1,25 +1,12 @@
-import { ProjectConfig } from './config';
-import { setupDatabase } from './database';
-import { setupAuthentication } from './auth';
-import { setupFrontend } from './frontend';
-import { setupUserManagement } from './userManagement';
-import { setupApi } from './api';
-import { setupTesting } from './testing';
-import { setupDocker } from './docker';
-import { setupMultiModule } from './multiModule';
-import { setupMonorepo } from './monorepo';
-import { setupPlugins } from './plugins';
-import { setupSecurity } from './security';
-import { setupAlternativeFrontends } from './alternativeFrontends';
-import { setupDocumentation } from './documentation';
-import { setupEnvironments } from './environments';
-import { setupThirdPartyApis } from './thirdPartyApis';
-import { setupEmail } from './email';
-import { setupLogging } from './logging';
-import { setupSwagger } from './swagger';
-import { setupI18n } from './i18n';
-import { setupMigrations } from './migrations';
-import { setupAdminPanel } from './admin';
+import { ProjectConfig } from '../../src/types/config.js';
+import { setupDatabase } from './database.js';
+import { setupAuthentication } from './auth.js';
+import { setupFrontend } from './frontend.js';
+import { setupUserManagement } from './user-management.js';
+import { setupApi } from './api.js';
+import { setupTesting } from './testing.js';
+import { setupDocker } from './docker.js';
+import { setupEmail } from './email.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -33,92 +20,49 @@ export async function generateProject(config: ProjectConfig): Promise<void> {
   await setupBasicStructure(projectPath, config);
   
   // Setup database
-  await setupDatabase(projectPath, config);
-  
-  // Setup authentication
-  if (config.authentication.enabled) {
-    await setupAuthentication(projectPath, config);
+  if (config.database) {
+    await setupDatabase(config, projectPath);
   }
   
-  // Setup frontend
-  await setupFrontend(projectPath, config);
+  // Setup authentication if enabled
+  if (config.authentication?.enabled) {
+    await setupAuthentication(projectPath, config.authentication.type || 'jwt');
+  }
+  
+  // Setup frontend if not 'none'
+  if (config.frontend) {
+    await setupFrontend(config.frontend.type, projectPath);
+  }
   
   // Setup user management
-  if (config.userManagement.enabled) {
+  if (config.userManagement) {
     await setupUserManagement(projectPath, config);
-    if (config.userManagement.adminPanel) {
-      await setupAdminPanel(projectPath);
-    }
   }
   
   // Setup API
-  await setupApi(projectPath, config);
+  if (config.api) {
+    await setupApi(config.api, projectPath);
+  }
   
   // Setup testing
-  if (config.testing.enabled) {
-    await setupTesting(projectPath, config);
+  if (config.testing) {
+    await setupTesting(projectPath);
   }
   
   // Setup Docker
-  if (config.docker.enabled) {
+  if (config.docker) {
     await setupDocker(projectPath, config);
   }
   
-  // Setup multi-module structure
-  if (config.features.multiModule) {
-    await setupMultiModule(projectPath, config);
-  }
-  
-  // Setup monorepo structure
-  if (config.features.monorepo) {
-    await setupMonorepo(projectPath, config);
-  }
-  
-  // Setup plugins
-  await setupPlugins(projectPath, config);
-  
-  // Setup security
-  if (config.features.security) {
-    await setupSecurity(projectPath, config);
-  }
-  
-  // Setup alternative frontends
-  await setupAlternativeFrontends(projectPath, config);
-  
-  // Setup documentation
-  await setupDocumentation(projectPath, config);
-  
-  // Setup environments
-  if (config.features.environments) {
-    await setupEnvironments(projectPath, config);
-  }
-  
-  // Setup third-party APIs
-  if (config.features.thirdPartyApis) {
-    await setupThirdPartyApis(projectPath, config);
-  }
-  
-  // Setup email
-  if (config.features.email) {
-    await setupEmail(projectPath);
-  }
-  
-  // Setup logging
-  await setupLogging(projectPath);
-  
-  // Setup Swagger
-  if (config.features.openApi) {
-    await setupSwagger(projectPath);
-  }
-  
-  // Setup i18n
-  if (config.features.i18n) {
-    await setupI18n(projectPath, config);
-  }
-  
-  // Setup migrations
-  if (config.features.migrations.enabled) {
-    await setupMigrations(projectPath, config);
+  // Setup email if it's in the features
+  if (config.features?.includes('email')) {
+    await setupEmail(
+      projectPath, 
+      config, 
+      config.database?.username || 'user',
+      'http://localhost:8080/reset-password',
+      'http://localhost:8080/verify-email'
+    );
   }
 }
 
@@ -147,7 +91,7 @@ async function setupBasicStructure(projectPath: string, config: ProjectConfig): 
 This project was generated using Spring Fullstack Generator.
 
 ## Features
-${getFeaturesList(config)}
+${getFeaturesList(config).join('\n')}
 
 ## Getting Started
 1. Install dependencies:
@@ -178,62 +122,36 @@ ${getFeaturesList(config)}
   await fs.writeFile(path.join(projectPath, 'README.md'), readmeContent);
 }
 
-function getFeaturesList(config: ProjectConfig): string {
-  const features = [];
-  
-  if (config.authentication.enabled) {
-    features.push(`- Authentication (${config.authentication.type})`);
+function getFeaturesList(config: ProjectConfig): string[] {
+  const features: string[] = [];
+
+  if (config.database) {
+    features.push(`Database: ${config.database.type}`);
   }
-  
-  if (config.userManagement.enabled) {
-    features.push('- User Management');
-    if (config.userManagement.adminPanel) {
-      features.push('  - Admin Panel');
-    }
+
+  if (config.frontend?.type !== 'none') {
+    features.push(`Frontend: ${config.frontend?.type}`);
   }
-  
-  if (config.testing.enabled) {
-    features.push('- Testing');
-    if (config.testing.advanced) {
-      features.push('  - Advanced Testing');
-    }
+
+  if (config.api) {
+    features.push(`API: ${config.api}`);
   }
-  
-  if (config.docker.enabled) {
-    features.push('- Docker Support');
+
+  if (config.authentication?.enabled) {
+    features.push(`Authentication: ${config.authentication.type || 'jwt'}`);
   }
-  
-  if (config.features.multiModule) {
-    features.push('- Multi-module Structure');
+
+  if (config.userManagement?.enabled) {
+    features.push('User Management');
   }
-  
-  if (config.features.monorepo) {
-    features.push('- Monorepo Structure');
+
+  if (config.testing) {
+    features.push('Testing');
   }
-  
-  if (config.features.security) {
-    features.push('- Advanced Security');
+
+  if (config.docker) {
+    features.push('Docker');
   }
-  
-  if (config.features.email) {
-    features.push('- Email Module');
-  }
-  
-  if (config.features.thirdPartyApis) {
-    features.push('- Third-party API Integrations');
-  }
-  
-  if (config.features.migrations.enabled) {
-    features.push(`- Database Migrations (${config.features.migrations.type})`);
-  }
-  
-  if (config.features.i18n) {
-    features.push('- Internationalization');
-  }
-  
-  if (config.features.openApi) {
-    features.push('- OpenAPI Documentation');
-  }
-  
-  return features.join('\n');
+
+  return features;
 } 

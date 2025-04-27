@@ -1,8 +1,8 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from '../../src/types/config';
 import fs from 'fs-extra';
 import path from 'path';
 
-export async function setupEmail(projectPath: string): Promise<void> {
+export async function setupEmail(projectPath: string, config: ProjectConfig, username: string, resetLink: string, verificationLink: string): Promise<void> {
   const emailPath = path.join(projectPath, 'backend/src/main/java/com/example/email');
   await fs.mkdirp(emailPath);
 
@@ -128,13 +128,11 @@ public class EmailTemplates {
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Welcome</title>
+    <title>Welcome to ${path.basename(projectPath)}!</title>
 </head>
 <body>
-    <h1>Welcome to ${path.basename(projectPath)}!</h1>
-    <p>Dear <span th:text="${username}">User</span>,</p>
-    <p>Thank you for joining our platform. We're excited to have you on board!</p>
-    <p>Best regards,<br>The Team</p>
+    <h1>Welcome ${username}!</h1>
+    <p>Thank you for joining ${path.basename(projectPath)}.</p>
 </body>
 </html>`,
     'password-reset-email.html': `
@@ -145,11 +143,9 @@ public class EmailTemplates {
 </head>
 <body>
     <h1>Password Reset Request</h1>
-    <p>Dear <span th:text="${username}">User</span>,</p>
-    <p>We received a request to reset your password. Click the link below to proceed:</p>
-    <p><a th:href="${resetLink}">Reset Password</a></p>
-    <p>If you didn't request this, please ignore this email.</p>
-    <p>Best regards,<br>The Team</p>
+    <p>Hello ${username},</p>
+    <p>Click the link below to reset your password:</p>
+    <a th:href="${resetLink}">Reset Password</a>
 </body>
 </html>`,
     'verification-email.html': `
@@ -160,11 +156,9 @@ public class EmailTemplates {
 </head>
 <body>
     <h1>Verify Your Email</h1>
-    <p>Dear <span th:text="${username}">User</span>,</p>
-    <p>Please verify your email address by clicking the link below:</p>
-    <p><a th:href="${verificationLink}">Verify Email</a></p>
-    <p>If you didn't create an account, please ignore this email.</p>
-    <p>Best regards,<br>The Team</p>
+    <p>Hello ${username},</p>
+    <p>Click the link below to verify your email address:</p>
+    <a th:href="${verificationLink}">Verify Email</a>
 </body>
 </html>`
   };

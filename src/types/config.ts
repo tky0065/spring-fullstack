@@ -1,5 +1,6 @@
 export interface ProjectConfig {
   projectName: string;
+  projectPath: string;
   database: {
     type: 'postgresql' | 'mysql' | 'mongodb' | 'h2';
     host: string;
@@ -8,27 +9,60 @@ export interface ProjectConfig {
     password: string;
   };
   frontend: {
-    framework: 'react' | 'vue' | 'angular' | 'none';
-    templateEngine?: 'thymeleaf' | 'freemarker' | 'jsp';
+    type: 'react' | 'vue' | 'angular' | 'none';
+    framework?: string;
+    styling?: 'css' | 'scss' | 'tailwind';
+    testing?: boolean;
   };
-  auth: {
-    type: 'jwt' | 'session' | 'oauth2';
+  authentication: {
+    enabled: boolean;
+    type?: 'jwt' | 'oauth2' | 'session';
+  };
+  userManagement: {
+    enabled: boolean;
+    adminPanel?: boolean;
+  };
+  testing: boolean;
+  docker: boolean;
+  api: 'rest' | 'graphql';
+  features: string[];
+  deployment?: {
+    provider: 'aws' | 'gcp' | 'azure';
+    region: string;
+    environment: 'development' | 'staging' | 'production';
   };
 }
 
-export const defaultConfig: ProjectConfig = {
-  projectName: 'my-spring-app',
+export interface Options {
+  projectName: string;
+  database: string;
+  frontend: string;
+  auth: string;
+}
+
+export const DEFAULT_CONFIG: ProjectConfig = {
+  projectName: '',
+  projectPath: '',
   database: {
     type: 'postgresql',
     host: 'localhost',
     port: '5432',
-    username: 'postgres',
-    password: 'postgres'
+    username: 'root',
+    password: 'password'
   },
   frontend: {
-    framework: 'react'
+    type: 'none',
+    testing: false
   },
-  auth: {
-    type: 'jwt'
-  }
+  authentication: {
+    enabled: false
+  },
+  userManagement: {
+    enabled: false
+  },
+  testing: false,
+  docker: false,
+  api: 'rest',
+  features: [],
+  deployment: undefined
 }; 

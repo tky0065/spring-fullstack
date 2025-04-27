@@ -1,5 +1,5 @@
 import inquirer from 'inquirer';
-import type { ProjectOptions, Database, Frontend, AuthType } from '../types';
+import type { ProjectOptions, Database, Frontend, AuthType } from '../types.js';
 
 async function promptForProjectName(): Promise<string> {
   const { projectName } = await inquirer.prompt({

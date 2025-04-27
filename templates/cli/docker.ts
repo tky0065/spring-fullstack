@@ -1,12 +1,72 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from '../../src/types/config.js';
 import fs from 'fs-extra';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-export async function setupDocker(projectPath: string, config: ProjectConfig) {
-  await setupDockerCompose(projectPath, config);
-  await setupBackendDockerfile(projectPath, config);
-  await setupFrontendDockerfile(projectPath, config);
-  await setupNginxConfig(projectPath, config);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export async function setupDocker(config: ProjectConfig, projectPath: string): Promise<void> {
+  if (!config.docker) {
+    return;
+  }
+
+  const dockerfilePath = path.join(projectPath, 'Dockerfile');
+  const dockerComposeFilePath = path.join(projectPath, 'docker-compose.yml');
+
+  const dbType = config.database.type;
+  const dbConfig = {
+    postgresql: {
+      image: 'postgres:15-alpine',
+      port: '5432',
+      envPrefix: 'POSTGRES'
+    },
+    mysql: {
+      image: 'mysql:8',
+      port: '3306',
+      envPrefix: 'MYSQL'
+    },
+    mongodb: {
+      image: 'mongo:6',
+      port: '27017',
+      envPrefix: 'MONGO_INITDB'
+    },
+    h2: {
+      image: 'openjdk:17-jdk-slim',
+      port: '8082',
+      envPrefix: 'H2'
+    }
+  };
+
+  const dbProps = dbConfig[dbType];
+
+  const dockerfileContent = `FROM openjdk:17-jdk-slim
+WORKDIR /app
+COPY backend/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","app.jar"]`;
+
+  const dockerComposeContent = `version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    depends_on:
+      - db
+  db:
+    image: ${dbProps.image}
+    ports:
+      - "${dbProps.port}:${dbProps.port}"
+    environment:
+      - ${dbProps.envPrefix}_DB=app
+      - ${dbProps.envPrefix}_USER=${config.database.username}
+      - ${dbProps.envPrefix}_PASSWORD=${config.database.password}`;
+
+  await fs.writeFile(dockerfilePath, dockerfileContent);
+  await fs.writeFile(dockerComposeFilePath, dockerComposeContent);
 }
 
 async function setupDockerCompose(projectPath: string, config: ProjectConfig) {
@@ -67,7 +127,7 @@ networks:
 
 function getDatabaseService(config: ProjectConfig): string {
   switch (config.database.type) {
-    case 'PostgreSQL':
+    case 'postgresql':
       return `
   db:
     image: postgres:latest
@@ -82,7 +142,7 @@ function getDatabaseService(config: ProjectConfig): string {
       
 volumes:
   postgres_data:`;
-    case 'MySQL':
+    case 'mysql':
       return `
   db:
     image: mysql:latest
@@ -98,7 +158,7 @@ volumes:
       
 volumes:
   mysql_data:`;
-    case 'MongoDB':
+    case 'mongodb':
       return `
   db:
     image: mongo:latest
@@ -191,12 +251,12 @@ server {
 }
 
 function getDatabaseUrl(config: ProjectConfig): string {
-  switch (config.database.type) {
-    case 'PostgreSQL':
+  switch (config.database.type.toLowerCase()) {
+    case 'postgresql':
       return 'jdbc:postgresql://db:5432/' + config.projectName.toLowerCase();
-    case 'MySQL':
+    case 'mysql':
       return 'jdbc:mysql://db:3306/' + config.projectName.toLowerCase();
-    case 'MongoDB':
+    case 'mongodb':
       return 'mongodb://db:27017/' + config.projectName.toLowerCase();
     default:
       return '';
@@ -205,10 +265,10 @@ function getDatabaseUrl(config: ProjectConfig): string {
 
 function getDefaultUsername(config: ProjectConfig): string {
   switch (config.database.type) {
-    case 'PostgreSQL':
-    case 'MySQL':
+    case 'postgresql':
+    case 'mysql':
       return 'root';
-    case 'MongoDB':
+    case 'mongodb':
       return '';
     default:
       return '';
@@ -217,10 +277,10 @@ function getDefaultUsername(config: ProjectConfig): string {
 
 function getDefaultPassword(config: ProjectConfig): string {
   switch (config.database.type) {
-    case 'PostgreSQL':
-    case 'MySQL':
+    case 'postgresql':
+    case 'mysql':
       return 'root';
-    case 'MongoDB':
+    case 'mongodb':
       return '';
     default:
       return '';

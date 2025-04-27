@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from './config.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -31,7 +31,7 @@ ${config.projectName} is a full-stack application with the following components:
 - Spring Boot
 - Spring Security
 - ${config.database.type} Database
-- ${config.api.type === 'REST' ? 'REST API' : 'GraphQL API'}
+- ${config.api.type === 'rest' ? 'REST API' : 'GraphQL API'}
 
 ### Frontend
 - ${config.frontend.framework}
@@ -178,7 +178,7 @@ async function setupApiDocs(projectPath: string, config: ProjectConfig) {
   const docsPath = path.join(projectPath, 'docs', 'api');
   await fs.ensureDir(docsPath);
   
-  if (config.api.type === 'REST') {
+  if (config.api.type === 'rest') {
     await setupRestApiDocs(docsPath, config);
   } else {
     await setupGraphQLApiDocs(docsPath, config);

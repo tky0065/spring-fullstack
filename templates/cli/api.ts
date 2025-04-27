@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from './config.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -6,7 +6,7 @@ export async function setupApi(projectPath: string, config: ProjectConfig) {
   const backendPath = path.join(projectPath, 'backend');
   const javaPath = path.join(backendPath, 'src', 'main', 'java');
   
-  if (config.api.type === 'REST') {
+  if (config.api.type === 'rest') {
     await setupRestApi(javaPath, config);
   } else {
     await setupGraphQLApi(javaPath, config);

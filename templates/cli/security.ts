@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from './config.js';
 import fs from 'fs-extra';
 import path from 'path';
 

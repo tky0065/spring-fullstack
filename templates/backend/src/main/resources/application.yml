@@ -75,4 +75,25 @@ logging:
     root: INFO
     com.example: DEBUG
     org.springframework.web: INFO
-    org.hibernate: INFO 
+    org.hibernate: INFO
+
+# Email Configuration
+mail:
+  host: smtp.gmail.com
+  port: 587
+  username: ${EMAIL_USERNAME}
+  password: ${EMAIL_PASSWORD}
+  properties:
+    mail:
+      smtp:
+        auth: true
+        starttls:
+          enable: true
+
+# Thymeleaf Configuration
+thymeleaf:
+  cache: false
+  prefix: classpath:/templates/
+  suffix: .html
+  mode: HTML
+  encoding: UTF-8 

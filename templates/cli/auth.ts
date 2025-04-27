@@ -1,8 +1,9 @@
-import { ProjectConfig } from './config';
+import { ProjectConfig } from '../../src/types/config.js';
 import fs from 'fs-extra';
 import path from 'path';
+import crypto from 'crypto';
 
-export async function setupAuthentication(projectPath: string, config: ProjectConfig) {
+export async function setupAuthentication(projectPath: string, config: ProjectConfig): Promise<void> {
   const backendPath = path.join(projectPath, 'backend');
   const javaPath = path.join(backendPath, 'src', 'main', 'java');
   const resourcesPath = path.join(backendPath, 'src', 'main', 'resources');
@@ -14,17 +15,17 @@ export async function setupAuthentication(projectPath: string, config: ProjectCo
   await setupAuthConfig(resourcesPath, config);
   
   // Create JWT configuration if needed
-  if (config.authentication.type === 'JWT') {
+  if (config.authentication.type === 'jwt') {
     await setupJwtConfig(javaPath, config);
   }
   
   // Create OAuth2 configuration if needed
-  if (config.authentication.type === 'OAuth2') {
+  if (config.authentication.type === 'oauth2') {
     await setupOAuth2Config(javaPath, config);
   }
 }
 
-async function setupSecurityConfig(javaPath: string, config: ProjectConfig) {
+async function setupSecurityConfig(javaPath: string, config: ProjectConfig): Promise<void> {
   const securityConfig = `
 package com.${config.projectName.toLowerCase()}.security;
 
@@ -67,38 +68,35 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 function getAuthenticationConfig(config: ProjectConfig): string {
   switch (config.authentication.type) {
-    case 'JWT':
+    case 'jwt':
       return `
         // JWT Configuration
-        .and()
-        .addFilter(new JwtAuthenticationFilter(authenticationManager()))
-        .addFilter(new JwtAuthorizationFilter(authenticationManager()));
-`;
-    case 'Session':
+        jwt:
+          secret: ${generateSecretKey()}
+          expiration: 86400000  # 24 hours
+      `;
+    case 'oauth2':
       return `
-        // Session Configuration
-        .and()
-        .formLogin()
-        .loginPage("/login")
-        .permitAll()
-        .and()
-        .logout()
-        .permitAll();
-`;
-    case 'OAuth2':
+        # OAuth2 Configuration
+        oauth2:
+          client:
+            registration:
+              google:
+                client-id: YOUR_CLIENT_ID
+                client-secret: YOUR_CLIENT_SECRET
+      `;
+    case 'session':
       return `
-        // OAuth2 Configuration
-        .and()
-        .oauth2Login()
-        .loginPage("/login")
-        .permitAll();
-`;
+        # Session Configuration
+        session:
+          timeout: 1800  # 30 minutes
+      `;
     default:
       return '';
   }
 }
 
-export async function setupAuthConfig(resourcesPath: string, config: ProjectConfig) {
+async function setupAuthConfig(resourcesPath: string, config: ProjectConfig): Promise<void> {
   let authConfig = `
 spring:
   security:
@@ -107,7 +105,7 @@ spring:
       password: ${generateRandomPassword()}
 `;
 
-  if (config.authentication.type === 'JWT') {
+  if (config.authentication.type === 'jwt') {
     authConfig += `
 jwt:
   secret: ${generateRandomSecret()}
@@ -121,7 +119,7 @@ jwt:
   );
 }
 
-async function setupJwtConfig(javaPath: string, config: ProjectConfig) {
+async function setupJwtConfig(javaPath: string, config: ProjectConfig): Promise<void> {
   const jwtConfig = `
 package com.${config.projectName.toLowerCase()}.security.jwt;
 
@@ -204,7 +202,7 @@ public class JwtTokenProvider {
   );
 }
 
-async function setupOAuth2Config(javaPath: string, config: ProjectConfig) {
+async function setupOAuth2Config(javaPath: string, config: ProjectConfig): Promise<void> {
   const oauth2Config = `
 package com.${config.projectName.toLowerCase()}.security.oauth2;
 
@@ -260,39 +258,27 @@ function generateRandomSecret(): string {
   return Math.random().toString(36).slice(-32);
 }
 
+function generateSecretKey(): string {
+  return crypto.randomBytes(64).toString('base64');
+}
+
 export async function setupAuthDependencies(projectPath: string, authType: string): Promise<void> {
   const pomPath = path.join(projectPath, 'backend/pom.xml');
   const pomContent = await fs.readFile(pomPath, 'utf-8');
 
-  const authDependencies = {
+  const authDependencies: Record<string, string> = {
     jwt: `
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.11.5</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.11.5</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.11.5</version>
-            <scope>runtime</scope>
-        </dependency>`,
-    session: `
-        <dependency>
-            <groupId>org.springframework.session</groupId>
-            <artifactId>spring-session-jdbc</artifactId>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
         </dependency>`,
     oauth2: `
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
-        </dependency>`
+        </dependency>`,
+    none: ''
   };
 
   const updatedPomContent = pomContent.replace(

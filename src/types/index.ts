@@ -16,3 +16,5 @@ export interface AuthOptions {
   enabled: boolean;
   type: AuthType;
 }
+
+export * from './config.js';

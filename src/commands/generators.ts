@@ -1,8 +1,15 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { ProjectOptions } from './create.js';
+import { ProjectConfig } from '../types/config.js';
+import { fileURLToPath } from 'url';
+import { setupDatabase } from '../templates/cli/database.js';
+import { setupAuthentication } from '../templates/cli/auth.js';
+import { setupDocker } from '../templates/cli/docker.js';
 
-export async function generateBackend(projectPath: string, options: ProjectOptions): Promise<void> {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export async function generateBackend(config: ProjectConfig, projectPath: string): Promise<void> {
   const backendPath = path.join(projectPath, 'backend');
   await fs.mkdirp(backendPath);
 
@@ -57,7 +64,7 @@ export async function generateBackend(projectPath: string, options: ProjectOptio
     <artifactId>backend</artifactId>
     <version>1.0.0</version>
     <name>Backend Application</name>
-    <description>Backend application for ${options.projectName}</description>
+    <description>Backend application for ${config.projectName}</description>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -76,44 +83,6 @@ export async function generateBackend(projectPath: string, options: ProjectOptio
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        ${options.templateEngine === 'thymeleaf' ? `
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        ` : ''}
-        ${options.templateEngine === 'freemarker' ? `
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-freemarker</artifactId>
-        </dependency>
-        ` : ''}
-        ${options.templateEngine === 'jsp' ? `
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-jasper</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        ` : ''}
-        ${options.swagger ? `
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-boot-starter</artifactId>
-            <version>3.0.0</version>
-        </dependency>
-        ` : ''}
-        ${options.graphql ? `
-        <dependency>
-            <groupId>com.graphql-java</groupId>
-            <artifactId>graphql-spring-boot-starter</artifactId>
-            <version>5.0.2</version>
-        </dependency>
-        <dependency>
-            <groupId>com.graphql-java</groupId>
-            <artifactId>graphql-java-tools</artifactId>
-            <version>5.2.4</version>
-        </dependency>
-        ` : ''}
     </dependencies>
     <build>
         <plugins>
@@ -126,283 +95,291 @@ export async function generateBackend(projectPath: string, options: ProjectOptio
 </project>`;
 
   await fs.writeFile(path.join(backendPath, 'pom.xml'), pomContent);
-
-  // Créer les templates si un moteur de template est sélectionné
-  if (options.templateEngine) {
-    const templatesPath = path.join(backendPath, 'src/main/resources/templates');
-    await fs.mkdirp(templatesPath);
-
-    const templateContent = {
-      thymeleaf: `
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Home</title>
-</head>
-<body>
-    <h1>Welcome to ${options.projectName}</h1>
-</body>
-</html>`,
-      freemarker: `
-<#-- @ftlvariable name="message" type="java.lang.String" -->
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Home</title>
-</head>
-<body>
-    <h1>Welcome to ${options.projectName}</h1>
-</body>
-</html>`,
-      jsp: `
-<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Home</title>
-</head>
-<body>
-    <h1>Welcome to ${options.projectName}</h1>
-</body>
-</html>`
-    };
-
-    const extension = {
-      thymeleaf: 'html',
-      freemarker: 'ftl',
-      jsp: 'jsp'
-    };
-
-    await fs.writeFile(
-      path.join(templatesPath, `home.${extension[options.templateEngine]}`),
-      templateContent[options.templateEngine]
-    );
-  }
 }
 
-export async function generateFrontend(projectPath: string, options: ProjectOptions): Promise<void> {
+export async function generateFrontend(config: ProjectConfig, projectPath: string): Promise<void> {
+  if (config.frontend.type === 'none') return;
+
   const frontendPath = path.join(projectPath, 'frontend');
   await fs.ensureDir(frontendPath);
 
-  if (options.frontend === 'react') {
-    await generateReactFrontend(frontendPath);
-  } else if (options.frontend === 'vue') {
-    await generateVueFrontend(frontendPath);
-  } else if (options.frontend === 'angular') {
-    await generateAngularFrontend(frontendPath);
+  if (config.frontend.type === 'react') {
+    await generateReactFrontend(frontendPath, config);
+  } else if (config.frontend.type === 'vue') {
+    await generateVueFrontend(frontendPath, config);
+  } else if (config.frontend.type === 'angular') {
+    await generateAngularFrontend(frontendPath, config);
   }
 }
 
-async function generateReactFrontend(frontendPath: string): Promise<void> {
+async function generateReactFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
   // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
     private: true,
     dependencies: {
-      '@types/node': '^12.0.0',
-      '@types/react': '^17.0.0',
-      '@types/react-dom': '^17.0.0',
-      'react': '^17.0.2',
-      'react-dom': '^17.0.2',
-      'react-router-dom': '^6.0.0',
-      'typescript': '^4.5.0'
+      'react': '^18.2.0',
+      'react-dom': '^18.2.0',
+      'react-router-dom': '^6.11.2',
+      '@types/react': '^18.2.7',
+      '@types/react-dom': '^18.2.4',
+      'typescript': '^5.0.4',
+      'vite': '^4.3.9',
+      '@vitejs/plugin-react': '^4.0.0'
     },
     scripts: {
-      'start': 'react-scripts start',
-      'build': 'react-scripts build',
-      'test': 'react-scripts test',
-      'eject': 'react-scripts eject'
+      'dev': 'vite',
+      'build': 'tsc && vite build',
+      'preview': 'vite preview'
     }
   };
 
   await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
-
-  // Create tsconfig.json
-  const tsconfig = {
-    compilerOptions: {
-      target: 'es5',
-      lib: ['dom', 'dom.iterable', 'esnext'],
-      allowJs: true,
-      skipLibCheck: true,
-      esModuleInterop: true,
-      allowSyntheticDefaultImports: true,
-      strict: true,
-      forceConsistentCasingInFileNames: true,
-      noFallthroughCasesInSwitch: true,
-      module: 'esnext',
-      moduleResolution: 'node',
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmit: true,
-      jsx: 'react-jsx'
-    },
-    include: ['src']
-  };
-
-  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
 }
 
-async function generateVueFrontend(frontendPath: string): Promise<void> {
+async function generateVueFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
   // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
     private: true,
     dependencies: {
-      'vue': '^3.2.0',
-      'vue-router': '^4.0.0',
-      'vuex': '^4.0.0',
-      'typescript': '^4.5.0'
-    },
-    devDependencies: {
-      '@vue/cli-plugin-typescript': '^5.0.0',
-      '@vue/cli-service': '^5.0.0',
-      '@vue/compiler-sfc': '^3.2.0'
+      'vue': '^3.3.4',
+      'vue-router': '^4.2.2',
+      'typescript': '^5.0.4',
+      'vite': '^4.3.9',
+      '@vitejs/plugin-vue': '^4.2.3',
+      '@vue/compiler-sfc': '^3.3.4'
     },
     scripts: {
-      'serve': 'vue-cli-service serve',
-      'build': 'vue-cli-service build'
+      'dev': 'vite',
+      'build': 'vue-tsc && vite build',
+      'preview': 'vite preview'
     }
   };
 
   await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
-
-  // Create tsconfig.json
-  const tsconfig = {
-    compilerOptions: {
-      target: 'esnext',
-      module: 'esnext',
-      strict: true,
-      jsx: 'preserve',
-      moduleResolution: 'node'
-    }
-  };
-
-  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
 }
 
-async function generateAngularFrontend(frontendPath: string): Promise<void> {
+async function generateAngularFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
   // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
     private: true,
     dependencies: {
-      '@angular/core': '^13.0.0',
-      '@angular/platform-browser': '^13.0.0',
-      '@angular/platform-browser-dynamic': '^13.0.0',
-      '@angular/router': '^13.0.0',
-      'rxjs': '^7.4.0',
-      'zone.js': '^0.11.4',
-      'typescript': '^4.5.0'
-    },
-    devDependencies: {
-      '@angular-devkit/build-angular': '^13.0.0',
-      '@angular/cli': '^13.0.0',
-      '@angular/compiler-cli': '^13.0.0'
+      '@angular/core': '^16.0.0',
+      '@angular/platform-browser': '^16.0.0',
+      '@angular/platform-browser-dynamic': '^16.0.0',
+      '@angular/router': '^16.0.0',
+      'rxjs': '^7.8.1',
+      'zone.js': '^0.13.0',
+      'typescript': '^5.0.4'
     },
     scripts: {
       'ng': 'ng',
       'start': 'ng serve',
-      'build': 'ng build'
+      'build': 'ng build',
+      'watch': 'ng build --watch --configuration development',
+      'test': 'ng test'
     }
   };
 
   await fs.writeJson(path.join(frontendPath, 'package.json'), packageJson, { spaces: 2 });
-
-  // Create tsconfig.json
-  const tsconfig = {
-    compileOnSave: false,
-    compilerOptions: {
-      baseUrl: './src',
-      outDir: './dist/out-tsc',
-      sourceMap: true,
-      declaration: false,
-      downlevelIteration: true,
-      experimentalDecorators: true,
-      moduleResolution: 'node',
-      importHelpers: true,
-      target: 'es2015',
-      module: 'es2020',
-      lib: ['es2018', 'dom']
-    }
-  };
-
-  await fs.writeJson(path.join(frontendPath, 'tsconfig.json'), tsconfig, { spaces: 2 });
 }
 
-export async function generateDocker(projectPath: string, options: ProjectOptions): Promise<void> {
-  const dockerPath = path.join(projectPath, 'docker');
-  await fs.mkdirp(dockerPath);
+export async function generateDocker(config: ProjectConfig, projectPath: string): Promise<void> {
+  const dockerfilePath = path.join(projectPath, 'Dockerfile');
+  const dockerComposeFilePath = path.join(projectPath, 'docker-compose.yml');
 
-  // Créer Dockerfile pour le backend
-  const backendDockerfile = `FROM maven:3.8.4-openjdk-11 AS build
+  const dockerfileContent = `FROM openjdk:17-jdk-slim
 WORKDIR /app
-COPY backend/pom.xml .
-COPY backend/src ./src
-RUN mvn clean package -DskipTests
-
-FROM openjdk:11-jre-slim
-WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY backend/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]`;
+ENTRYPOINT ["java","-jar","app.jar"]`;
 
-  await fs.writeFile(path.join(dockerPath, 'Dockerfile.backend'), backendDockerfile);
-
-  // Créer Dockerfile pour le frontend
-  const frontendDockerfile = `FROM node:16-alpine AS build
-WORKDIR /app
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]`;
-
-  await fs.writeFile(path.join(dockerPath, 'Dockerfile.frontend'), frontendDockerfile);
-
-  // Créer docker-compose.yml
   const dockerComposeContent = `version: '3.8'
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.backend
+  app:
+    build: .
     ports:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${options.projectName}
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
     depends_on:
       - db
-
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-
   db:
-    image: postgres:13
+    image: ${config.database.type === 'postgresql' ? 'postgres:15-alpine' : config.database.type === 'mysql' ? 'mysql:8' : 'mongo:6'}
+    ports:
+      - "${config.database.type === 'postgresql' ? '5432' : config.database.type === 'mysql' ? '3306' : '27017'}:${config.database.type === 'postgresql' ? '5432' : config.database.type === 'mysql' ? '3306' : '27017'}"
     environment:
-      - POSTGRES_DB=${options.projectName}
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ${config.database.type === 'postgresql' ? 'POSTGRES_DB' : config.database.type === 'mysql' ? 'MYSQL_DATABASE' : 'MONGO_INITDB_DATABASE'}=app
+      - ${config.database.type === 'postgresql' ? 'POSTGRES_USER' : config.database.type === 'mysql' ? 'MYSQL_USER' : 'MONGO_INITDB_ROOT_USERNAME'}=user
+      - ${config.database.type === 'postgresql' ? 'POSTGRES_PASSWORD' : config.database.type === 'mysql' ? 'MYSQL_PASSWORD' : 'MONGO_INITDB_ROOT_PASSWORD'}=password`;
 
-volumes:
-  postgres_data:`;
+  await fs.writeFile(dockerfilePath, dockerfileContent);
+  await fs.writeFile(dockerComposeFilePath, dockerComposeContent);
+}
 
-  await fs.writeFile(path.join(dockerPath, 'docker-compose.yml'), dockerComposeContent);
+export async function generateProject(config: ProjectConfig): Promise<void> {
+  try {
+    // Create project directory
+    await fs.ensureDir(config.projectPath);
+
+    // Generate basic structure
+    await setupBasicStructure(config);
+
+    // Setup database configuration
+    await setupDatabase(config);
+
+    // Setup authentication if enabled
+    if (config.authentication.enabled) {
+      await setupAuthentication(config.projectPath, config);
+    }
+
+    // Setup Docker configuration if enabled
+    if (config.docker) {
+      await setupDocker(config);
+    }
+
+    // Generate README.md
+    await generateReadme(config);
+
+  } catch (error) {
+    console.error('Error generating project:', error);
+    throw error;
+  }
+}
+
+async function setupBasicStructure(config: ProjectConfig): Promise<void> {
+  const srcPath = path.join(config.projectPath, 'src/main/java');
+  const resourcesPath = path.join(config.projectPath, 'src/main/resources');
+  
+  await fs.ensureDir(srcPath);
+  await fs.ensureDir(resourcesPath);
+  
+  // Copy pom.xml template
+  const pomTemplate = await fs.readFile(path.join(__dirname, '../../templates/backend/pom.xml'), 'utf8');
+  const pomContent = pomTemplate
+    .replace(/{{projectName}}/g, config.projectName)
+    .replace(/{{#if mysql}}/g, config.database.type === 'mysql' ? '' : '<!--')
+    .replace(/{{\/if}}/g, config.database.type === 'mysql' ? '' : '-->')
+    .replace(/{{#if postgresql}}/g, config.database.type === 'postgresql' ? '' : '<!--')
+    .replace(/{{\/if}}/g, config.database.type === 'postgresql' ? '' : '-->')
+    .replace(/{{#if mongodb}}/g, config.database.type === 'mongodb' ? '' : '<!--')
+    .replace(/{{\/if}}/g, config.database.type === 'mongodb' ? '' : '-->')
+    .replace(/{{#if h2}}/g, config.database.type === 'h2' ? '' : '<!--')
+    .replace(/{{\/if}}/g, config.database.type === 'h2' ? '' : '-->')
+    .replace(/{{#if authentication}}/g, config.authentication.enabled ? '' : '<!--')
+    .replace(/{{\/if}}/g, config.authentication.enabled ? '' : '-->');
+
+  await fs.writeFile(path.join(config.projectPath, 'pom.xml'), pomContent);
+
+  // Copy application.properties template
+  const propertiesTemplate = await fs.readFile(path.join(__dirname, '../../templates/backend/src/main/resources/application.properties'), 'utf8');
+  const propertiesContent = propertiesTemplate
+    .replace(/{{projectName}}/g, config.projectName)
+    .replace(/{{#if mysql}}/g, config.database.type === 'mysql' ? '' : '# ')
+    .replace(/{{\/if}}/g, '')
+    .replace(/{{#if postgresql}}/g, config.database.type === 'postgresql' ? '' : '# ')
+    .replace(/{{\/if}}/g, '')
+    .replace(/{{#if mongodb}}/g, config.database.type === 'mongodb' ? '' : '# ')
+    .replace(/{{\/if}}/g, '')
+    .replace(/{{#if h2}}/g, config.database.type === 'h2' ? '' : '# ')
+    .replace(/{{\/if}}/g, '')
+    .replace(/{{#if authentication}}/g, config.authentication.enabled ? '' : '# ')
+    .replace(/{{\/if}}/g, '');
+
+  await fs.writeFile(path.join(resourcesPath, 'application.properties'), propertiesContent);
+
+  // Create main application class
+  const mainClass = await fs.readFile(path.join(__dirname, '../../templates/backend/src/main/java/com/example/Application.java'), 'utf8');
+  const mainClassContent = mainClass.replace(/{{projectName}}/g, config.projectName);
+  
+  await fs.writeFile(
+    path.join(srcPath, 'com', 'example', config.projectName.toLowerCase(), 'Application.java'),
+    mainClassContent
+  );
+}
+
+async function generateReadme(config: ProjectConfig): Promise<void> {
+  const features = getFeaturesList(config);
+  
+  const readme = `# ${config.projectName}
+
+A Spring Boot application generated with spring-fullstack CLI.
+
+## Features
+
+${features.map(f => `- ${f}`).join('\n')}
+
+## Getting Started
+
+### Prerequisites
+
+- Java 17 or higher
+- Maven
+- ${config.database.type} database
+${config.frontend.type !== 'none' ? '- Node.js and npm' : ''}
+${config.docker ? '- Docker and Docker Compose' : ''}
+
+### Running the Application
+
+1. Clone the repository
+2. Configure the database connection in \`src/main/resources/application.properties\`
+${config.docker ? 
+'3. Run \`docker-compose up -d\` to start the application and dependencies' : 
+'3. Run \`./mvnw spring-boot:run\` to start the application'}
+
+${config.frontend.type !== 'none' ? `
+### Frontend Development
+
+1. Navigate to the frontend directory: \`cd frontend\`
+2. Install dependencies: \`npm install\`
+3. Start the development server: \`npm run dev\`
+` : ''}
+
+## API Documentation
+
+The API documentation is available at \`http://localhost:8080/swagger-ui.html\` when the application is running.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+`;
+
+  await fs.writeFile(
+    path.join(config.projectPath, 'README.md'),
+    readme
+  );
+}
+
+function getFeaturesList(config: ProjectConfig): string[] {
+  const features = [
+    `${config.database.type} database integration`,
+    `REST API with Swagger documentation`
+  ];
+
+  if (config.authentication.enabled) {
+    features.push(`Authentication (${config.authentication.type})`);
+  }
+
+  if (config.frontend.type !== 'none') {
+    features.push(`${config.frontend.type} frontend`);
+  }
+
+  if (config.testing) {
+    features.push('Comprehensive testing setup');
+  }
+
+  if (config.docker) {
+    features.push('Docker containerization');
+  }
+
+  return features;
 } 
