@@ -1,6 +1,6 @@
 {
   "name": "spring-fullstack",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A CLI tool to generate fullstack Spring Boot applications with modern frontend frameworks",
   "type": "module",
   "main": "./dist/index.js",
