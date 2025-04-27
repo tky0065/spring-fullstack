@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config.js';
+import { ProjectConfig } from '../../src/types.js'; // Correction du chemin d'importation
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -10,7 +10,10 @@ export async function setupAlternativeFrontends(projectPath: string, config: Pro
 }
 
 async function setupSvelteConfig(projectPath: string, config: ProjectConfig) {
-  // Create Svelte configuration
+  if (!config.projectName) {
+    throw new Error('Project name is required to set up Svelte configuration.');
+  }
+
   const svelteConfig = {
     'svelte.config.js': `
 import adapter from '@sveltejs/adapter-static';
@@ -92,15 +95,15 @@ export default defineConfig({
   await fs.mkdirp(sveltePath);
 
   for (const [filename, content] of Object.entries(svelteConfig)) {
-    await fs.writeFile(
-      path.join(sveltePath, filename),
-      content
-    );
+    await fs.writeFile(path.join(sveltePath, filename), content);
   }
 }
 
 async function setupVueConfig(projectPath: string, config: ProjectConfig) {
-  // Create Vue configuration
+  if (!config.projectName) {
+    throw new Error('Project name is required to set up Vue configuration.');
+  }
+
   const vueConfig = {
     'vite.config.js': `
 import { defineConfig } from 'vite';
@@ -154,15 +157,11 @@ export default defineConfig({
   await fs.mkdirp(vuePath);
 
   for (const [filename, content] of Object.entries(vueConfig)) {
-    await fs.writeFile(
-      path.join(vuePath, filename),
-      content
-    );
+    await fs.writeFile(path.join(vuePath, filename), content);
   }
 }
 
 async function setupSharedFrontendConfig(projectPath: string, config: ProjectConfig) {
-  // Create shared frontend configuration
   const sharedConfig = {
     'tsconfig.json': `
 {
@@ -220,15 +219,11 @@ async function setupSharedFrontendConfig(projectPath: string, config: ProjectCon
   await fs.mkdirp(sharedPath);
 
   for (const [filename, content] of Object.entries(sharedConfig)) {
-    await fs.writeFile(
-      path.join(sharedPath, filename),
-      content
-    );
+    await fs.writeFile(path.join(sharedPath, filename), content);
   }
 }
 
 async function setupFrontendTemplates(projectPath: string, config: ProjectConfig) {
-  // Create frontend templates
   const templates = {
     'svelte': {
       'App.svelte': `
@@ -328,10 +323,7 @@ const message = ref('Welcome to ${config.projectName}');
     await fs.mkdirp(frameworkPath);
 
     for (const [filename, content] of Object.entries(files)) {
-      await fs.writeFile(
-        path.join(frameworkPath, filename),
-        content
-      );
+      await fs.writeFile(path.join(frameworkPath, filename), content);
     }
   }
-} 
+}

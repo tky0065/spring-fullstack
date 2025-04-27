@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config.js';
+import { ProjectConfig } from '../../src/types.js'; // Correction du chemin d'importation
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -11,7 +11,7 @@ export async function setupDocumentation(projectPath: string, config: ProjectCon
 async function setupTechnicalDocs(projectPath: string, config: ProjectConfig) {
   const docsPath = path.join(projectPath, 'docs', 'technical');
   await fs.ensureDir(docsPath);
-  
+
   // Create architecture documentation
   const architectureDoc = `
 # Architecture Documentation
@@ -20,21 +20,21 @@ async function setupTechnicalDocs(projectPath: string, config: ProjectConfig) {
 ${config.projectName} is a full-stack application with the following components:
 
 - Backend: Spring Boot application
-- Frontend: ${config.frontend.framework} application
+- Frontend: ${config.frontend?.framework || 'None'} application
 - Database: ${config.database.type}
-- Authentication: ${config.authentication.type}
+- Authentication: ${config.authentication.type || 'None'}
 
 ## Technology Stack
 
 ### Backend
-- Java ${config.javaVersion}
+- Java 17
 - Spring Boot
 - Spring Security
 - ${config.database.type} Database
 - ${config.api.type === 'rest' ? 'REST API' : 'GraphQL API'}
 
 ### Frontend
-- ${config.frontend.framework}
+- ${config.frontend?.framework || 'None'}
 - TypeScript
 - Tailwind CSS
 - React Router
@@ -57,13 +57,13 @@ ${config.projectName} is a full-stack application with the following components:
     path.join(docsPath, 'architecture.md'),
     architectureDoc
   );
-  
+
   // Create development guide
   const devGuide = `
 # Development Guide
 
 ## Prerequisites
-- Java ${config.javaVersion}
+- Java 17
 - Node.js 18+
 - Docker
 - Kubernetes (for deployment)
@@ -115,7 +115,7 @@ ${config.projectName} is a full-stack application with the following components:
 async function setupUserDocs(projectPath: string, config: ProjectConfig) {
   const docsPath = path.join(projectPath, 'docs', 'user');
   await fs.ensureDir(docsPath);
-  
+
   // Create user guide
   const userGuide = `
 # User Guide
@@ -144,7 +144,7 @@ async function setupUserDocs(projectPath: string, config: ProjectConfig) {
 - Change password
 - Manage preferences
 
-${config.userManagement.adminPanel ? `
+${config.userManagement?.adminPanel ? `
 ### Admin Panel
 - User management
 - Role management
@@ -177,7 +177,7 @@ ${config.userManagement.adminPanel ? `
 async function setupApiDocs(projectPath: string, config: ProjectConfig) {
   const docsPath = path.join(projectPath, 'docs', 'api');
   await fs.ensureDir(docsPath);
-  
+
   if (config.api.type === 'rest') {
     await setupRestApiDocs(docsPath, config);
   } else {
@@ -368,4 +368,4 @@ GraphQL errors are returned in the following format:
     path.join(docsPath, 'graphql-api.md'),
     apiDoc
   );
-} 
+}

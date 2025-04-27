@@ -1,12 +1,17 @@
 export interface ProjectConfig {
   projectName: string;
   projectPath: string;
-  databaseType: string;
-  databaseHost: string;
-  databasePort: string;
-  databaseUsername: string;
-  databasePassword: string;
-  frontendFramework: string;
+  database: {
+    type: 'MySQL' | 'PostgreSQL' | 'MongoDB' | 'H2';
+    host: string;
+    port: string;
+    username: string;
+    password: string;
+  };
+  frontend: {
+    framework: 'React' | 'Vue.js' | 'Angular' | 'None';
+    testing: boolean;
+  };
   authentication: boolean;
   emailEnabled: boolean;
   thirdPartyApis: boolean;
@@ -14,34 +19,20 @@ export interface ProjectConfig {
   migrations: boolean;
   multiModule: boolean;
   testing: boolean;
+  adminPanel: boolean;
+  swagger: boolean;
   deployment: {
     environments: string[];
     docker: boolean;
     kubernetes: boolean;
   };
+  userManagement?: {
+    enabled: boolean;
+    adminPanel?: boolean;
+  }; // Ajout de la propriété userManagement
+  api: {
+    type: 'rest' | 'graphql';
+    documentation: boolean;
+  }; // Ajout de la propriété api
+  features: string[];
 }
-
-export type Database = 'MySQL' | 'PostgreSQL' | 'MongoDB' | 'H2';
-export type Frontend = 'React' | 'Vue.js' | 'Angular' | 'None' | 'Java Template Engine';
-export type AuthType = 'JWT' | 'OAuth2' | 'Session';
-
-export interface ProjectOptions {
-  projectName: string;
-  database: Database;
-  authentication: boolean;
-  authType?: AuthType;
-  frontend: Frontend;
-  adminPanel: boolean;
-  swagger: boolean;
-  docker: boolean;
-  ciCd: boolean;
-  environments: boolean;
-  monorepo: boolean;
-  security: boolean;
-  email: boolean;
-  thirdPartyApis: boolean;
-  tests: boolean;
-  i18n: boolean;
-  migrations: boolean;
-  multiModule: boolean;
-} 

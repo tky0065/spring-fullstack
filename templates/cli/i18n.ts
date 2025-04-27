@@ -1,4 +1,4 @@
-import { ProjectConfig } from './config.js';
+import { ProjectConfig } from '../../src/types.js'; // Correction du chemin d'importation
 import fs from 'fs-extra';
 import path from 'path';
 

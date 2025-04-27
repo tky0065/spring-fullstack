@@ -130,3 +130,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
   await fs.writeFile(path.join(projectPath, 'README.md'), readme);
 }
+

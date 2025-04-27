@@ -1,25 +1,9 @@
 #!/usr/bin/env node
 import inquirer from 'inquirer';
-import { ProjectConfig, defaultConfig } from './config.js';
+import { ProjectConfig, defaultConfig } from '../../src/types.js'; // Correction du chemin d'importation
 import { generateProject } from './generator.js';
-export * from './database.js';
-export * from './auth.js';
-export * from './docker.js';
-export * from './email.js';
-export * from './frontend.js';
-export * from './user-management.js';
-export * from './api.js';
-export * from './testing.js';
-export * from './security.js';
-export * from './third-party-apis.js';
-export * from './i18n.js';
-export * from './migrations.js';
-export * from './multi-module.js';
 import { setupPlugins } from './plugins.js';
-import { setupAlternativeFrontends } from './alternativeFrontends.js';
 import { setupDocumentation } from './documentation.js';
-import { setupEnvironments } from './environments.js';
-import { setupLogging } from './logging.js';
 import { setupSwagger } from './swagger.js';
 import { setupI18n } from './i18n.js';
 import { setupMigrations } from './migrations.js';
@@ -52,7 +36,7 @@ async function main() {
       name: 'authentication.type',
       message: 'Choose authentication type:',
       choices: ['JWT', 'Session', 'OAuth2'],
-      when: (answers) => answers.authentication.enabled,
+      when: (answers) => answers.authentication?.enabled,
     },
     {
       type: 'list',
@@ -65,7 +49,7 @@ async function main() {
       name: 'frontend.templateEngine',
       message: 'Choose template engine:',
       choices: ['Thymeleaf', 'Freemarker', 'JSP', 'jte'],
-      when: (answers) => answers.frontend.framework === 'JavaTemplate',
+      when: (answers) => answers.frontend?.framework === 'JavaTemplate',
     },
     {
       type: 'confirm',
@@ -77,7 +61,7 @@ async function main() {
       type: 'confirm',
       name: 'userManagement.adminPanel',
       message: 'Include admin panel?',
-      when: (answers) => answers.userManagement.enabled,
+      when: (answers) => answers.userManagement?.enabled,
     },
     {
       type: 'list',
@@ -95,7 +79,7 @@ async function main() {
       type: 'confirm',
       name: 'testing.advanced',
       message: 'Include advanced testing?',
-      when: (answers) => answers.testing.enabled,
+      when: (answers) => answers.testing?.enabled,
     },
     {
       type: 'confirm',
@@ -162,7 +146,7 @@ async function main() {
       name: 'features.migrations.type',
       message: 'Choose migration tool:',
       choices: ['Flyway', 'Liquibase'],
-      when: (answers) => answers.features.migrations.enabled,
+      when: (answers) => answers.features?.migrations?.enabled,
     },
     {
       type: 'confirm',
@@ -186,4 +170,4 @@ async function main() {
   }
 }
 
-main().catch(console.error); 
+main().catch(console.error);

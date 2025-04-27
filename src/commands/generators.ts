@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { ProjectConfig } from '../types/config.js';
+import { ProjectConfig } from '../types/config.js'; // Correction : Vérifiez que ce chemin est correct
 import { fileURLToPath } from 'url';
 import { setupDatabase } from '../templates/cli/database.js';
 import { setupAuthentication } from '../templates/cli/auth.js';
@@ -98,22 +98,21 @@ export async function generateBackend(config: ProjectConfig, projectPath: string
 }
 
 export async function generateFrontend(config: ProjectConfig, projectPath: string): Promise<void> {
-  if (config.frontend.type === 'none') return;
+  if (config.frontend.framework === 'None') return;
 
   const frontendPath = path.join(projectPath, 'frontend');
   await fs.ensureDir(frontendPath);
 
-  if (config.frontend.type === 'react') {
+  if (config.frontend.framework === 'React') {
     await generateReactFrontend(frontendPath, config);
-  } else if (config.frontend.type === 'vue') {
+  } else if (config.frontend.framework === 'Vue.js') {
     await generateVueFrontend(frontendPath, config);
-  } else if (config.frontend.type === 'angular') {
+  } else if (config.frontend.framework === 'Angular') {
     await generateAngularFrontend(frontendPath, config);
   }
 }
 
 async function generateReactFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
-  // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
@@ -139,7 +138,6 @@ async function generateReactFrontend(frontendPath: string, config: ProjectConfig
 }
 
 async function generateVueFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
-  // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
@@ -163,7 +161,6 @@ async function generateVueFrontend(frontendPath: string, config: ProjectConfig):
 }
 
 async function generateAngularFrontend(frontendPath: string, config: ProjectConfig): Promise<void> {
-  // Create package.json
   const packageJson = {
     name: path.basename(frontendPath),
     version: '1.0.0',
@@ -193,6 +190,8 @@ export async function generateDocker(config: ProjectConfig, projectPath: string)
   const dockerfilePath = path.join(projectPath, 'Dockerfile');
   const dockerComposeFilePath = path.join(projectPath, 'docker-compose.yml');
 
+  const dbType = config.database.type.toLowerCase(); // Normalisation des valeurs
+
   const dockerfileContent = `FROM openjdk:17-jdk-slim
 WORKDIR /app
 COPY backend/target/*.jar app.jar
@@ -210,176 +209,15 @@ services:
     depends_on:
       - db
   db:
-    image: ${config.database.type === 'postgresql' ? 'postgres:15-alpine' : config.database.type === 'mysql' ? 'mysql:8' : 'mongo:6'}
+    image: ${dbType === 'postgresql' ? 'postgres:15-alpine' : dbType === 'mysql' ? 'mysql:8' : 'mongo:6'}
     ports:
-      - "${config.database.type === 'postgresql' ? '5432' : config.database.type === 'mysql' ? '3306' : '27017'}:${config.database.type === 'postgresql' ? '5432' : config.database.type === 'mysql' ? '3306' : '27017'}"
+      - "${dbType === 'postgresql' ? '5432' : dbType === 'mysql' ? '3306' : '27017'}:${dbType === 'postgresql' ? '5432' : dbType === 'mysql' ? '3306' : '27017'}"
     environment:
-      - ${config.database.type === 'postgresql' ? 'POSTGRES_DB' : config.database.type === 'mysql' ? 'MYSQL_DATABASE' : 'MONGO_INITDB_DATABASE'}=app
-      - ${config.database.type === 'postgresql' ? 'POSTGRES_USER' : config.database.type === 'mysql' ? 'MYSQL_USER' : 'MONGO_INITDB_ROOT_USERNAME'}=user
-      - ${config.database.type === 'postgresql' ? 'POSTGRES_PASSWORD' : config.database.type === 'mysql' ? 'MYSQL_PASSWORD' : 'MONGO_INITDB_ROOT_PASSWORD'}=password`;
+      - ${dbType === 'postgresql' ? 'POSTGRES_DB' : dbType === 'mysql' ? 'MYSQL_DATABASE' : 'MONGO_INITDB_DATABASE'}=app
+      - ${dbType === 'postgresql' ? 'POSTGRES_USER' : dbType === 'mysql' ? 'MYSQL_USER' : 'MONGO_INITDB_ROOT_USERNAME'}=user
+      - ${dbType === 'postgresql' ? 'POSTGRES_PASSWORD' : dbType === 'mysql' ? 'MYSQL_PASSWORD' : 'MONGO_INITDB_ROOT_PASSWORD'}=password`;
 
   await fs.writeFile(dockerfilePath, dockerfileContent);
   await fs.writeFile(dockerComposeFilePath, dockerComposeContent);
 }
 
-export async function generateProject(config: ProjectConfig): Promise<void> {
-  try {
-    // Create project directory
-    await fs.ensureDir(config.projectPath);
-
-    // Generate basic structure
-    await setupBasicStructure(config);
-
-    // Setup database configuration
-    await setupDatabase(config);
-
-    // Setup authentication if enabled
-    if (config.authentication.enabled) {
-      await setupAuthentication(config.projectPath, config);
-    }
-
-    // Setup Docker configuration if enabled
-    if (config.docker) {
-      await setupDocker(config);
-    }
-
-    // Generate README.md
-    await generateReadme(config);
-
-  } catch (error) {
-    console.error('Error generating project:', error);
-    throw error;
-  }
-}
-
-async function setupBasicStructure(config: ProjectConfig): Promise<void> {
-  const srcPath = path.join(config.projectPath, 'src/main/java');
-  const resourcesPath = path.join(config.projectPath, 'src/main/resources');
-  
-  await fs.ensureDir(srcPath);
-  await fs.ensureDir(resourcesPath);
-  
-  // Copy pom.xml template
-  const pomTemplate = await fs.readFile(path.join(__dirname, '../../templates/backend/pom.xml'), 'utf8');
-  const pomContent = pomTemplate
-    .replace(/{{projectName}}/g, config.projectName)
-    .replace(/{{#if mysql}}/g, config.database.type === 'mysql' ? '' : '<!--')
-    .replace(/{{\/if}}/g, config.database.type === 'mysql' ? '' : '-->')
-    .replace(/{{#if postgresql}}/g, config.database.type === 'postgresql' ? '' : '<!--')
-    .replace(/{{\/if}}/g, config.database.type === 'postgresql' ? '' : '-->')
-    .replace(/{{#if mongodb}}/g, config.database.type === 'mongodb' ? '' : '<!--')
-    .replace(/{{\/if}}/g, config.database.type === 'mongodb' ? '' : '-->')
-    .replace(/{{#if h2}}/g, config.database.type === 'h2' ? '' : '<!--')
-    .replace(/{{\/if}}/g, config.database.type === 'h2' ? '' : '-->')
-    .replace(/{{#if authentication}}/g, config.authentication.enabled ? '' : '<!--')
-    .replace(/{{\/if}}/g, config.authentication.enabled ? '' : '-->');
-
-  await fs.writeFile(path.join(config.projectPath, 'pom.xml'), pomContent);
-
-  // Copy application.properties template
-  const propertiesTemplate = await fs.readFile(path.join(__dirname, '../../templates/backend/src/main/resources/application.properties'), 'utf8');
-  const propertiesContent = propertiesTemplate
-    .replace(/{{projectName}}/g, config.projectName)
-    .replace(/{{#if mysql}}/g, config.database.type === 'mysql' ? '' : '# ')
-    .replace(/{{\/if}}/g, '')
-    .replace(/{{#if postgresql}}/g, config.database.type === 'postgresql' ? '' : '# ')
-    .replace(/{{\/if}}/g, '')
-    .replace(/{{#if mongodb}}/g, config.database.type === 'mongodb' ? '' : '# ')
-    .replace(/{{\/if}}/g, '')
-    .replace(/{{#if h2}}/g, config.database.type === 'h2' ? '' : '# ')
-    .replace(/{{\/if}}/g, '')
-    .replace(/{{#if authentication}}/g, config.authentication.enabled ? '' : '# ')
-    .replace(/{{\/if}}/g, '');
-
-  await fs.writeFile(path.join(resourcesPath, 'application.properties'), propertiesContent);
-
-  // Create main application class
-  const mainClass = await fs.readFile(path.join(__dirname, '../../templates/backend/src/main/java/com/example/Application.java'), 'utf8');
-  const mainClassContent = mainClass.replace(/{{projectName}}/g, config.projectName);
-  
-  await fs.writeFile(
-    path.join(srcPath, 'com', 'example', config.projectName.toLowerCase(), 'Application.java'),
-    mainClassContent
-  );
-}
-
-async function generateReadme(config: ProjectConfig): Promise<void> {
-  const features = getFeaturesList(config);
-  
-  const readme = `# ${config.projectName}
-
-A Spring Boot application generated with spring-fullstack CLI.
-
-## Features
-
-${features.map(f => `- ${f}`).join('\n')}
-
-## Getting Started
-
-### Prerequisites
-
-- Java 17 or higher
-- Maven
-- ${config.database.type} database
-${config.frontend.type !== 'none' ? '- Node.js and npm' : ''}
-${config.docker ? '- Docker and Docker Compose' : ''}
-
-### Running the Application
-
-1. Clone the repository
-2. Configure the database connection in \`src/main/resources/application.properties\`
-${config.docker ? 
-'3. Run \`docker-compose up -d\` to start the application and dependencies' : 
-'3. Run \`./mvnw spring-boot:run\` to start the application'}
-
-${config.frontend.type !== 'none' ? `
-### Frontend Development
-
-1. Navigate to the frontend directory: \`cd frontend\`
-2. Install dependencies: \`npm install\`
-3. Start the development server: \`npm run dev\`
-` : ''}
-
-## API Documentation
-
-The API documentation is available at \`http://localhost:8080/swagger-ui.html\` when the application is running.
-
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-`;
-
-  await fs.writeFile(
-    path.join(config.projectPath, 'README.md'),
-    readme
-  );
-}
-
-function getFeaturesList(config: ProjectConfig): string[] {
-  const features = [
-    `${config.database.type} database integration`,
-    `REST API with Swagger documentation`
-  ];
-
-  if (config.authentication.enabled) {
-    features.push(`Authentication (${config.authentication.type})`);
-  }
-
-  if (config.frontend.type !== 'none') {
-    features.push(`${config.frontend.type} frontend`);
-  }
-
-  if (config.testing) {
-    features.push('Comprehensive testing setup');
-  }
-
-  if (config.docker) {
-    features.push('Docker containerization');
-  }
-
-  return features;
-} 

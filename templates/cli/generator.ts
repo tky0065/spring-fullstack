@@ -1,4 +1,4 @@
-import { ProjectConfig } from '../../src/types/config.js';
+import { ProjectConfig } from '../../src/types.js'; // Correction du chemin d'importation
 import { setupDatabase } from './database.js';
 import { setupAuthentication } from './auth.js';
 import { setupFrontend } from './frontend.js';
@@ -12,54 +12,54 @@ import path from 'path';
 
 export async function generateProject(config: ProjectConfig): Promise<void> {
   const projectPath = path.join(process.cwd(), config.projectName);
-  
+
   // Create project directory
   await fs.mkdirp(projectPath);
-  
+
   // Setup basic project structure
   await setupBasicStructure(projectPath, config);
-  
+
   // Setup database
-  if (config.database) {
+  if (config.databaseType) {
     await setupDatabase(config, projectPath);
   }
-  
+
   // Setup authentication if enabled
-  if (config.authentication?.enabled) {
-    await setupAuthentication(projectPath, config.authentication.type || 'jwt');
+  if (config.authentication) {
+    await setupAuthentication(projectPath, config); // Correction : passer l'objet config
   }
-  
-  // Setup frontend if not 'none'
-  if (config.frontend) {
-    await setupFrontend(config.frontend.type, projectPath);
+
+  // Setup frontend if not 'None'
+  if (config.frontendFramework && config.frontendFramework !== 'None') {
+    await setupFrontend(config.frontendFramework, projectPath);
   }
-  
-  // Setup user management
-  if (config.userManagement) {
+
+  // Setup user management (if applicable)
+  if (config.adminPanel) {
     await setupUserManagement(projectPath, config);
   }
-  
+
   // Setup API
-  if (config.api) {
-    await setupApi(config.api, projectPath);
+  if (config.swagger) {
+    await setupApi(config, projectPath); // Correction : passer l'objet config
   }
-  
+
   // Setup testing
   if (config.testing) {
     await setupTesting(projectPath);
   }
-  
+
   // Setup Docker
-  if (config.docker) {
-    await setupDocker(projectPath, config);
+  if (config.deployment.docker) {
+    await setupDocker(config, projectPath); // Correction : inverser les arguments
   }
-  
-  // Setup email if it's in the features
-  if (config.features?.includes('email')) {
+
+  // Setup email if enabled
+  if (config.emailEnabled) {
     await setupEmail(
-      projectPath, 
-      config, 
-      config.database?.username || 'user',
+      config, // Correction : passer l'objet config
+      projectPath,
+      config.databaseUsername || 'user',
       'http://localhost:8080/reset-password',
       'http://localhost:8080/verify-email'
     );
@@ -78,11 +78,11 @@ async function setupBasicStructure(projectPath: string, config: ProjectConfig): 
     'docs',
     '.github/workflows'
   ];
-  
+
   for (const dir of directories) {
     await fs.mkdirp(path.join(projectPath, dir));
   }
-  
+
   // Create README.md
   const readmeContent = `
 # ${config.projectName}
@@ -118,40 +118,41 @@ ${getFeaturesList(config).join('\n')}
 - Backend Documentation: ./docs/backend
 - Frontend Documentation: ./docs/frontend
 `;
-  
+
   await fs.writeFile(path.join(projectPath, 'README.md'), readmeContent);
 }
 
 function getFeaturesList(config: ProjectConfig): string[] {
   const features: string[] = [];
 
-  if (config.database) {
-    features.push(`Database: ${config.database.type}`);
+  if (config.databaseType) {
+    features.push(`Database: ${config.databaseType}`);
   }
 
-  if (config.frontend?.type !== 'none') {
-    features.push(`Frontend: ${config.frontend?.type}`);
+  if (config.frontendFramework && config.frontendFramework !== 'None') {
+    features.push(`Frontend: ${config.frontendFramework}`);
   }
 
-  if (config.api) {
-    features.push(`API: ${config.api}`);
+  if (config.swagger) {
+    features.push('API: REST');
   }
 
-  if (config.authentication?.enabled) {
-    features.push(`Authentication: ${config.authentication.type || 'jwt'}`);
+  if (config.authentication) {
+    features.push('Authentication: JWT');
   }
 
-  if (config.userManagement?.enabled) {
-    features.push('User Management');
+  if (config.adminPanel) {
+    features.push('Admin Panel');
   }
 
   if (config.testing) {
     features.push('Testing');
   }
 
-  if (config.docker) {
+  if (config.deployment.docker) {
     features.push('Docker');
   }
 
   return features;
-} 
+}
+
